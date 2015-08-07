@@ -264,9 +264,12 @@ WWW::Salesforce - Perl communication with the Salesforce RESTful API
 
 =head1 SYNOPSIS
 
+Blocking:
+
 	#!/usr/bin/env perl
 	use Mojo::Base -strict;
 	use WWW::Salesforce;
+	use Data::Dumper;
 
 	my $sf = WWW::Salesforce->new(
 		api_host => Mojo::URL->new('https://ca13.salesforce.com'),
@@ -281,9 +284,35 @@ WWW::Salesforce - Perl communication with the Salesforce RESTful API
 
 	say "Yay, we have a new SalesForce object!";
 
+	# calling login() will happen automatically.
 	my $records_array_ref = $sf->query('Select Id, Name, Phone from Account');
 	say Dumper $records_array_ref;
 	exit(0);
+
+Non-blocking:
+
+	#!/usr/bin/env perl
+	use Mojo::Base -strict;
+	use Mojo::IOLoop;
+	use WWW::Salesforce;
+
+	Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
+	my $sf = WWW::Salesforce->new(
+		api_host => Mojo::URL->new('https://ca13.salesforce.com'),
+		consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
+		consumer_secret => 'asdfasdjkfh234123513245',
+		username => 'foo@bar.com',
+		password => 'mypassword',
+		pass_token => 'mypasswordtoken123214123521345',
+	);
+	# handle any error events that get thrown (we'll just die for now)
+	$sf->on(error => sub {my ($e, $err) = @_; die $err});
+
+	# calling login() will happen automatically
+	$sf->query('select Name from Account',sub {
+		my ($self, $data) = @_;
+		say scalar(@{$data}) if $data;
+	});
 
 =head1 DESCRIPTION
 
