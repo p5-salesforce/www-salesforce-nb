@@ -1,2 +1,181 @@
 # www-salesforce-nb
 A non-blocking salesforce API using Mojolicious
+
+# WWW::Salesforce
+
+Perl communication with the Salesforce RESTful API
+
+# Table of Contents
+
+* [Synopsis](#synopsis)
+* [Description](#description)
+* [Events](#events)
+* [Attributes](#attributes)
+    * [access\_token](#access_token)
+    * [api\_host](#api_host)
+    * [consumer\_key](#consumer_key)
+    * [consumer\_secret](#consumer_secret)
+    * [pass\_token](#pass_token)
+    * [password](#password)
+    * [username](#username)
+* [Methods](#methods)
+    * [api\_path](#api_path-new_path-force_refresh)
+    * [create](#create-sobject_name-hash_ref)
+    * [describe](#describe-sobject_name)
+    * [login](#login)
+    * [query](#query-query_string)
+    * [ua](#ua)
+    * [update](#update-sobject_name-id-hash_ref)
+* [Author](#author)
+* [Bugs](#bugs)
+* [License](#license-and-copyright)
+
+# SYNOPSIS
+
+```perl
+#!/usr/bin/env perl
+use Mojo::Base -strict;
+use WWW::Salesforce;
+
+my $sf = WWW::Salesforce->new(
+    api_host => Mojo::URL->new('https://ca13.salesforce.com'),
+    consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
+    consumer_secret => 'asdfasdjkfh234123513245',
+    username => 'foo@bar.com',
+    password => 'mypassword',
+    pass_token => 'mypasswordtoken123214123521345',
+);
+$sf->on(error=> sub{ die pop });
+$sf->login();
+say "Yay, we're connected to Salesforce";
+my $records_array_ref = $sf->query('Select Id, Name, Phone from Account');
+say Dumper $records_array_ref;
+exit(0);
+```
+
+# DESCRIPTION
+
+The [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) class is a subclass of [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter).  It implements all methods of [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter) and adds a few more.
+
+[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) allows us to connect to [Salesforce](http://www.salesforce.com/)'s service to get our data using their RESTful API.
+
+Creation of a new [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) instance will not actually hit the server.  The first communication with the [Salesforce](http://www.salesforce.com/) API occurs when you specifically call the ```login``` method or when you make another call.
+
+All API calls using this library will first make sure you are properly logged in using [Session ID Authorization](http://www.salesforce.com/us/developer/docs/api_rest/Content/quickstart_oauth.htm) to get your access token.
+It will also make sure that you have grabbed the [latest API version](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_versions.htm) and use that version for all subsequent API method calls.
+
+The [Salesforce Username-Password OAuth Authentication Flow](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm) can help you understand how we're connected and maintaining our session.
+
+# EVENTS
+
+[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all events from [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter).
+
+# ATTRIBUTES
+
+[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all attributes from [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter) and adds the following new ones.
+
+## api\_host
+
+```perl
+my $host = $sf->api_host;
+$host = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') );
+```
+
+This is the base host of the API we're using.  This allows you to use any of your sandbox or live data areas easily.
+
+Note, changing this attribute might invalidate your access token after you've logged in.
+
+## consumer\_key
+
+```perl
+my $key = $sf->consumer_key;
+$key = $sf->consumer_key( 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf' );
+```
+
+The Consumer Key (also referred to as the client\_id in the Saleforce documentation) is part of your [Connected App](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm).  It is a required field to be able to login.
+
+Note, changing this attribute after the creation of your new instance is kind of pointless since it's only used to generate the access token at the beginning.
+
+## consumer\_secret
+
+```perl
+my $secret = $sf->consumer_secret;
+$secret = $sf->consumer_secret( 'asdfasdjkfh234123513245' );
+```
+
+The Consumer Secret (also referred to as the client\_secret in the Saleforce documentation) is part of your [Connected App](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm).  It is a required field to be able to login.
+
+Note, changing this attribute after the creation of your new instance is kind of pointless since it's only used to generate the access token at the beginning.
+
+## pass\_token
+
+```perl
+my $token = $sf->pass_token;
+$token = $sf->pass_token( 'mypasswordtoken123214123521345' );
+```
+
+The password token is a Salesforce-generated token to go along with your password.  It is appended to the end of your password and used only during login authentication.
+
+## password
+
+```perl
+my $password = $sf->password;
+$password = $sf->password( 'mypassword' );
+```
+
+The password is the password you set for your user account in Salesforce.  This attribute is only used during login authentication.
+
+## username
+
+```perl
+my $username = $sf->username;
+$username = $sf->username( 'foo@bar.com' );
+```
+
+The username is the email address you set for your user account in Salesforce.  This attribute is only used during login authentication.
+
+# METHODS
+
+[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all methods from [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter) and adds the following new ones.
+
+## api\_path( $new\_path, $force\_refresh)
+
+```perl
+my $path = $sf->api_path;
+```
+
+This is the path to the API version we're using.  It's always the latest version of the [Salesforce API](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_versions.htm).
+
+## login()
+
+	$sf->login();
+
+This method will reset your ```access_token``` and go through the [Salesforce Username-Password OAuth Authentication Flow](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm) again.
+Calling this method on your own is not necessary as any API call will call ```login``` if necessary.  This could be helpful if you're changing ```api_host```s on your instance.
+This method will update your ```access_token``` on a successful login.
+
+## query( $query\_string )
+
+```perl
+my $records_array_ref = $sf->query('Select Id, Name, Phone from Account');
+say Dumper $records_array_ref;
+```
+
+This method calls the Salesforce [Query method](http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm).  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
+
+## ua()
+
+```perl
+my $ua = $sf->ua;
+```
+
+This method gives you access to the [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent)  we use to connect to the [Salesforce](http://www.salesforce.com/) services.
+
+# AUTHOR
+
+Chase Whitener -- cwhitener@gmail.com
+
+# BUGS
+
+Please report any bugs or feature requests on GitHub [https://github.com/genio/www-salesforce-nb/issues](https://github.com/genio/www-salesforce-nb/issues).
+I appreciate any and all criticism, bug reports, enhancements, or fixes.
