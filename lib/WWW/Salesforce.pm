@@ -3,7 +3,6 @@ package WWW::Salesforce;
 use Mojo::Base 'Mojo::EventEmitter';
 use Mojo::Date;
 use Mojo::IOLoop;
-use Mojo::JSON qw(decode_json encode_json);
 use Mojo::URL;
 use Mojo::UserAgent;
 
