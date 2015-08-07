@@ -1,0 +1,11 @@
+Changes
+lib/WWW/Salesforce.pm
+Makefile.PL
+MANIFEST
+MANIFEST.SKIP
+LICENSE
+INSTALL
+README.md
+t/00-blocking.t
+t/pod-coverage.t
+t/pod.t

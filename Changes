@@ -1,0 +1,6 @@
+Revision history for Perl extension WWW::Salesforce.
+
+0.001
+	- created login() for both blocking and non-blocking
+	- created query() for both blocking and non-blocking
+	- created _require_login() to keep our connection alive for long periods
