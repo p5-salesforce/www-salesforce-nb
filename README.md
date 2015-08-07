@@ -27,6 +27,8 @@ Perl communication with the Salesforce RESTful API
 
 # SYNOPSIS
 
+## Blocking way
+
 ```perl
 #!/usr/bin/env perl
 use Mojo::Base -strict;
@@ -46,6 +48,31 @@ say "Yay, we're connected to Salesforce";
 my $records_array_ref = $sf->query('Select Id, Name, Phone from Account');
 say Dumper $records_array_ref;
 exit(0);
+```
+
+## Non-Blocking way
+
+```perl
+#!/usr/bin/env perl
+use Mojo::Base -strict;
+use Mojo::IOLoop;
+use WWW::Salesforce;
+
+Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
+my $sf = WWW::Salesforce->new(
+    api_host => Mojo::URL->new('https://ca13.salesforce.com'),
+    consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
+    consumer_secret => 'asdfasdjkfh234123513245',
+    username => 'foo@bar.com',
+    password => 'mypassword',
+    pass_token => 'mypasswordtoken123214123521345',
+);
+$sf->catch(sub {die pop});
+
+$sf->query('select Name from Account',sub {
+	my ($self, $data) = @_;
+	say "Found ".scalar(@{$data})." results" if $data;
+});
 ```
 
 # DESCRIPTION
