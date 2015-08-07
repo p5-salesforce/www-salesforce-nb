@@ -7,6 +7,8 @@ use Mojo::JSON qw(decode_json encode_json);
 use Mojo::URL;
 use Mojo::UserAgent;
 
+our $VERSION = '0.001';
+
 has '_api_path';
 has '_ua';
 has '_access_token';
@@ -78,7 +80,7 @@ sub login {
 		$self->_access_token($data->{access_token});
 		$self->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
 		$self->api_path(); # get the latest API path available to us
-		return $self->_access_token;
+		return $self;
 	}
 
 	# non-blocking request
@@ -88,7 +90,7 @@ sub login {
 			my ($delay, $ua, $tx) = @_;
 			$self->_error( $tx->error->{code}, $tx->error->{message}, $tx->res->body ) unless $tx->success;
 			my $data = $tx->res->json;
-			$self->api_host($data->{instance_url});
+			$self->api_host(Mojo::URL->new($data->{instance_url}));
 			$self->_access_token($data->{access_token});
 			$self->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
 			$self->api_path( $delay->begin() );
@@ -117,7 +119,8 @@ sub query {
 		my $tx = $self->ua->get( $url, $self->_headers(), form => { q => $query, } );
 		while(1) {
 			$self->_error( $tx->error->{code}, $tx->error->{message}, $tx->res->body ) unless( $tx->success );
-			my $json = $tx->success->json;
+			my $json = $tx->res->json;
+			last unless $json && $json->{records};
 			push @{$results}, @{$json->{records}};
 
 			last if $json->{done};
@@ -252,3 +255,176 @@ sub _require_login {
 }
 
 1;
+
+
+=encoding utf8
+
+=head1 NAME
+
+WWW::Salesforce - Perl communication with the Salesforce RESTful API
+
+=head1 SYNOPSIS
+
+	#!/usr/bin/env perl
+	use Mojo::Base -strict;
+	use WWW::Salesforce;
+
+	my $sf = WWW::Salesforce->new(
+		api_host => Mojo::URL->new('https://ca13.salesforce.com'),
+		consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
+		consumer_secret => 'asdfasdjkfh234123513245',
+		username => 'foo@bar.com',
+		password => 'mypassword',
+		pass_token => 'mypasswordtoken123214123521345',
+	);
+	# handle any error events that get thrown (we'll just die for now)
+	$sf->on(error => sub {my ($e, $err) = @_; die $err});
+
+	say "Yay, we have a new SalesForce object!";
+
+	my $records_array_ref = $sf->query('Select Id, Name, Phone from Account');
+	say Dumper $records_array_ref;
+	exit(0);
+
+=head1 DESCRIPTION
+
+The L<WWW::Salesforce> class is a subclass of L<Mojo::EventEmitter>.  It implements all methods of L<Mojo::EventEmitter> and adds a few more.
+
+L<WWW::Salesforce> allows us to connect to L<Salesforce|http://www.salesforce.com/>'s service to get our data using their RESTful API.
+
+Creation of a new L<WWW::Salesforce> instance will not actually hit the server.  The first communication with the L<Salesforce|http://www.salesforce.com/> API occurs when you specifically call the C<login> method or when you make another call.
+
+All API calls using this library will first make sure you are properly logged in using L<Session ID Authorization|http://www.salesforce.com/us/developer/docs/api_rest/Content/quickstart_oauth.htm> to get your access token.
+It will also make sure that you have grabbed the L<latest API version|http://www.salesforce.com/us/developer/docs/api_rest/Content/dome_versions.htm> and use that version for all subsequent API method calls.
+
+The L<Salesforce Username-Password OAuth Authentication Flow|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm> can help you understand how we're connected and maintaining our session.
+
+=head1 EVENTS
+
+L<WWW::Salesforce> inherits all events from L<Mojo::EventEmitter>.
+
+=head1 ATTRIBUTES
+
+L<WWW::Salesforce> inherits all attributes from L<Mojo::EventEmitter> and adds the following new ones.
+
+=head2 api_host
+
+	my $host = $sf->api_host;
+	$host = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') );
+
+This is the base host of the API we're using.  This allows you to use any of your sandbox or live data areas easily.
+
+Note, changing this attribute might invalidate your access token after you've logged in.
+
+=head2 consumer_key
+
+	my $key = $sf->consumer_key;
+	$key = $sf->consumer_key( 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf' );
+
+The Consumer Key (also referred to as the client_id in the Saleforce documentation) is part of your L<Connected App|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm>.  It is a required field to be able to login.
+
+Note, changing this attribute after the creation of your new instance is kind of pointless since it's only used to generate the access token at the beginning.
+
+=head2 consumer_secret
+
+	my $secret = $sf->consumer_secret;
+	$secret = $sf->consumer_secret( 'asdfasdjkfh234123513245' );
+
+The Consumer Secret (also referred to as the client_secret in the Saleforce documentation) is part of your L<Connected App|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm>.  It is a required field to be able to login.
+
+Note, changing this attribute after the creation of your new instance is kind of pointless since it's only used to generate the access token at the beginning.
+
+=head2 pass_token
+
+	my $token = $sf->pass_token;
+	$token = $sf->pass_token( 'mypasswordtoken123214123521345' );
+
+The password token is a Salesforce-generated token to go along with your password.  It is appended to the end of your password and used only during login authentication.
+
+=head2 password
+
+	my $password = $sf->password;
+	$password = $sf->password( 'mypassword' );
+
+The password is the password you set for your user account in Salesforce.  This attribute is only used during login authentication.
+
+=head2 username
+
+	my $username = $sf->username;
+	$username = $sf->username( 'foo@bar.com' );
+
+The username is the email address you set for your user account in Salesforce.  This attribute is only used during login authentication.
+
+=head1 METHODS
+
+L<WWW::Salesforce> inherits all methods from L<Mojo::EventEmitter> and adds the following new ones.
+
+=head2 api_path()
+
+	my $path = $sf->api_path;
+
+This is the path to the API version we're using.  We're always going to be using the latest API version available.
+
+=head2 login()
+
+	$sf->login();
+
+This method will reset your C<access_token> and go through the L<Salesforce Username-Password OAuth Authentication Flow|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm> again.
+Calling this method on your own is not necessary as any API call will call C<login> if necessary.  This could be helpful if you're changing C<api_host>s on your instance.
+This method will update your C<access_token> on a successful login.
+
+=head2 query( $query_string )
+
+	my $records_array_ref = $sf->query('Select Id, Name, Phone from Account');
+	say Dumper $records_array_ref;
+
+This method calls the Salesforce L<Query method|http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm>.  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
+
+=head2 ua()
+
+	my $ua = $sf->ua;
+
+This method gives you access to the C<Mojo::UserAgent> we use to connect to the L<Salesforce|http://www.salesforce.com/> services.
+
+=head1 AUTHOR
+
+Chase Whitener << <cwhitener at gmail.com> >>
+
+=head1 BUGS
+
+Please report any bugs or feature requests on GitHub L<https://github.com/genio/www-salesforce-nb/issues>.
+I appreciate any and all criticism, bug reports, enhancements, or fixes.
+
+=head1 SUPPORT
+
+You can find documentation for this module with the perldoc command.
+
+		perldoc WWW::Salesforce
+
+You can also look for information at:
+
+=over 4
+
+=item * GitHub
+
+L<https://github.com/genio/www-salesforce-nb>
+
+=back
+
+
+=head1 ACKNOWLEDGEMENTS
+
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2015
+
+This program is free software, you can redistribute it and/or modify it under
+the terms of the Artistic License version 2.0.
+
+=head1 SEE ALSO
+
+L<https://github.com/kraih/mojo>, L<Mojolicious::Guides>,
+L<http://mojolicio.us>.
+
+=cut

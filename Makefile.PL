@@ -14,7 +14,7 @@ WriteMakefile(
 		resources => {
 			license    => 'http://www.opensource.org/licenses/artistic-license-2.0',
 			homepage => 'https://github.com/genio/www-salesforce-nb',
-			bugtracker => 'https://github.com/genio/www-salesforce-nb/issues'
+			bugtracker => 'https://github.com/genio/www-salesforce-nb/issues',
 			repository => 'https://github.com/genio/www-salesforce-nb.git',
 		},
 		no_index => {directory => ['t']}
