@@ -18,7 +18,7 @@ Perl communication with the Salesforce RESTful API
     * [password](#password)
     * [username](#username)
 * [Methods](#methods)
-    * [api\_path](#api_path-new_path-force_refresh)
+    * [api\_path](#api_path)
     * [login](#login)
     * [query](#query-query_string)
     * [ua](#ua)
@@ -161,7 +161,7 @@ The username is the email address you set for your user account in Salesforce.  
 
 [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all methods from [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter) and adds the following new ones.
 
-## api\_path( $new\_path, $force\_refresh)
+## api\_path()
 
 ```perl
 my $path = $sf->api_path;
