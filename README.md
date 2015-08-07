@@ -24,7 +24,6 @@ Perl communication with the Salesforce RESTful API
     * [ua](#ua)
 * [Author](#author)
 * [Bugs](#bugs)
-* [License](#license-and-copyright)
 
 # SYNOPSIS
 
