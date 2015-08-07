@@ -33,6 +33,7 @@ Perl communication with the Salesforce RESTful API
 #!/usr/bin/env perl
 use Mojo::Base -strict;
 use WWW::Salesforce;
+use Data::Dumper;
 
 my $sf = WWW::Salesforce->new(
     api_host => Mojo::URL->new('https://ca13.salesforce.com'),
@@ -43,8 +44,7 @@ my $sf = WWW::Salesforce->new(
     pass_token => 'mypasswordtoken123214123521345',
 );
 $sf->on(error=> sub{ die pop });
-$sf->login();
-say "Yay, we're connected to Salesforce";
+# calling login() will happen automatically on any API call
 my $records_array_ref = $sf->query('Select Id, Name, Phone from Account');
 say Dumper $records_array_ref;
 exit(0);
@@ -69,6 +69,7 @@ my $sf = WWW::Salesforce->new(
 );
 $sf->catch(sub {die pop});
 
+# calling login() will happen automatically on any API call
 $sf->query('select Name from Account',sub {
 	my ($self, $data) = @_;
 	say "Found ".scalar(@{$data})." results" if $data;
