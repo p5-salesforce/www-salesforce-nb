@@ -1,5 +1,5 @@
 # www-salesforce-nb
-A non-blocking (Salesforce API)[https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_what_is_rest_api.htm] using [Mojolicious](http://mojolicio.us). It may one day replace (WWW::Salesforce)[http://metacpan.org/pod/WWW::Salesforce].
+A non-blocking [Salesforce API](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_what_is_rest_api.htm) using [Mojolicious](http://mojolicio.us). It may one day replace [WWW::Salesforce](http://metacpan.org/pod/WWW::Salesforce).
 
 It is EXTREMELY experimental at this point.  Use it at your own risk.  You've been warned.
 
