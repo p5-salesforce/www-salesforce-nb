@@ -1,5 +1,5 @@
 # www-salesforce-nb
-A non-blocking [Salesforce API](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_what_is_rest_api.htm) using [Mojolicious](http://mojolicio.us). It may one day replace [WWW::Salesforce](http://metacpan.org/pod/WWW::Salesforce).
+A non-blocking [Salesforce API](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_what_is_rest_api.htm) client using [Mojolicious](http://mojolicio.us). It may one day replace [WWW::Salesforce](http://metacpan.org/pod/WWW::Salesforce).
 
 It is EXTREMELY experimental at this point.  Use it at your own risk.  You've been warned.
 
@@ -101,7 +101,7 @@ The [Salesforce Username-Password OAuth Authentication Flow](http://www.salesfor
 
 ```perl
 my $host = $sf->api_host;
-$host = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') );
+$sf = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') ); # allows for method-chaining
 ```
 
 This is the base host of the API we're using.  This allows you to use any of your sandbox or live data areas easily.
@@ -112,7 +112,7 @@ Note, changing this attribute might invalidate your access token after you've lo
 
 ```perl
 my $key = $sf->consumer_key;
-$key = $sf->consumer_key( 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf' );
+$sf = $sf->consumer_key( 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf' ); # allows for method-chaining
 ```
 
 The Consumer Key (also referred to as the client\_id in the Saleforce documentation) is part of your [Connected App](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm).  It is a required field to be able to login.
@@ -123,7 +123,7 @@ Note, changing this attribute after the creation of your new instance is kind of
 
 ```perl
 my $secret = $sf->consumer_secret;
-$secret = $sf->consumer_secret( 'asdfasdjkfh234123513245' );
+$sf = $sf->consumer_secret( 'asdfasdjkfh234123513245' ); # allows for method-chaining
 ```
 
 The Consumer Secret (also referred to as the client\_secret in the Saleforce documentation) is part of your [Connected App](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm).  It is a required field to be able to login.
@@ -134,7 +134,7 @@ Note, changing this attribute after the creation of your new instance is kind of
 
 ```perl
 my $token = $sf->pass_token;
-$token = $sf->pass_token( 'mypasswordtoken123214123521345' );
+$sf = $sf->pass_token( 'mypasswordtoken123214123521345' ); # allows for method-chaining
 ```
 
 The password token is a Salesforce-generated token to go along with your password.  It is appended to the end of your password and used only during login authentication.
@@ -143,7 +143,7 @@ The password token is a Salesforce-generated token to go along with your passwor
 
 ```perl
 my $password = $sf->password;
-$password = $sf->password( 'mypassword' );
+$sf = $sf->password( 'mypassword' ); # allows for method-chaining
 ```
 
 The password is the password you set for your user account in Salesforce.  This attribute is only used during login authentication.
@@ -152,7 +152,7 @@ The password is the password you set for your user account in Salesforce.  This 
 
 ```perl
 my $username = $sf->username;
-$username = $sf->username( 'foo@bar.com' );
+$sf = $sf->username( 'foo@bar.com' ); # allows for method-chaining
 ```
 
 The username is the email address you set for your user account in Salesforce.  This attribute is only used during login authentication.

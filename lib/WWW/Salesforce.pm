@@ -328,7 +328,7 @@ L<WWW::Salesforce> inherits all attributes from L<Mojo::EventEmitter> and adds t
 =head2 api_host
 
 	my $host = $sf->api_host;
-	$host = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') );
+	$sf = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') ); # allows for method-chaining
 
 This is the base host of the API we're using.  This allows you to use any of your sandbox or live data areas easily.
 
@@ -337,7 +337,7 @@ Note, changing this attribute might invalidate your access token after you've lo
 =head2 consumer_key
 
 	my $key = $sf->consumer_key;
-	$key = $sf->consumer_key( 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf' );
+	$sf = $sf->consumer_key( 'alksdlkj3hh.asdf' );  # allows for method-chaining
 
 The Consumer Key (also referred to as the client_id in the Saleforce documentation) is part of your L<Connected App|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm>.  It is a required field to be able to login.
 
@@ -346,7 +346,7 @@ Note, changing this attribute after the creation of your new instance is kind of
 =head2 consumer_secret
 
 	my $secret = $sf->consumer_secret;
-	$secret = $sf->consumer_secret( 'asdfasdjkfh234123513245' );
+	$sf = $sf->consumer_secret( 'asdfasdjkfh234123513245' );  # allows for method-chaining
 
 The Consumer Secret (also referred to as the client_secret in the Saleforce documentation) is part of your L<Connected App|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm>.  It is a required field to be able to login.
 
@@ -355,21 +355,21 @@ Note, changing this attribute after the creation of your new instance is kind of
 =head2 pass_token
 
 	my $token = $sf->pass_token;
-	$token = $sf->pass_token( 'mypasswordtoken123214123521345' );
+	$sf = $sf->pass_token( 'mypasswordtoken123214123521345' );  # allows for method-chaining
 
 The password token is a Salesforce-generated token to go along with your password.  It is appended to the end of your password and used only during login authentication.
 
 =head2 password
 
 	my $password = $sf->password;
-	$password = $sf->password( 'mypassword' );
+	$sf = $sf->password( 'mypassword' );  # allows for method-chaining
 
 The password is the password you set for your user account in Salesforce.  This attribute is only used during login authentication.
 
 =head2 username
 
 	my $username = $sf->username;
-	$username = $sf->username( 'foo@bar.com' );
+	$sf = $sf->username( 'foo@bar.com' ); # allows for method-chaining
 
 The username is the email address you set for your user account in Salesforce.  This attribute is only used during login authentication.
 
