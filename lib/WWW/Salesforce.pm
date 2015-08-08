@@ -394,7 +394,8 @@ On error, this method will emit an C<error> event. You should catch errors as th
 		say "Our auth token is: $token";
 	);
 
-This method will reset your C<access_token> and go through the L<Salesforce Username-Password OAuth Authentication Flow|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm> again.
+This method will and go through the L<Salesforce Username-Password OAuth Authentication Flow|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm>
+process if you need to regenerate your authentication token.
 Calling this method on your own is not necessary as any API call will call C<login> if necessary.  This could be helpful if you're changing C<api_host>s on your instance.
 This method will update your C<access_token> on a successful login.
 On error, this method will emit an C<error> event. You should catch errors as the caller.

@@ -11,17 +11,17 @@ Perl communication with the Salesforce RESTful API
 * [Description](#description)
 * [Events](#events)
 * [Attributes](#attributes)
-    * [api\_host](#api_host)
-    * [consumer\_key](#consumer_key)
-    * [consumer\_secret](#consumer_secret)
-    * [pass\_token](#pass_token)
-    * [password](#password)
-    * [username](#username)
+	* [api\_host](#api_host)
+	* [consumer\_key](#consumer_key)
+	* [consumer\_secret](#consumer_secret)
+	* [pass\_token](#pass_token)
+	* [password](#password)
+	* [username](#username)
 * [Methods](#methods)
-    * [api\_path](#api_path)
-    * [login](#login)
-    * [query](#query-query_string)
-    * [ua](#ua)
+	* [api\_path](#api_path)
+	* [login](#login)
+	* [query](#query)
+	* [ua](#ua)
 * [Author](#author)
 * [Bugs](#bugs)
 
@@ -36,12 +36,12 @@ use WWW::Salesforce;
 use Data::Dumper;
 
 my $sf = WWW::Salesforce->new(
-    api_host => Mojo::URL->new('https://ca13.salesforce.com'),
-    consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
-    consumer_secret => 'asdfasdjkfh234123513245',
-    username => 'foo@bar.com',
-    password => 'mypassword',
-    pass_token => 'mypasswordtoken123214123521345',
+	api_host => Mojo::URL->new('https://ca13.salesforce.com'),
+	consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
+	consumer_secret => 'asdfasdjkfh234123513245',
+	username => 'foo@bar.com',
+	password => 'mypassword',
+	pass_token => 'mypasswordtoken123214123521345',
 );
 $sf->on(error=> sub{ die pop });
 # calling login() will happen automatically on any API call
@@ -60,12 +60,12 @@ use WWW::Salesforce;
 
 Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
 my $sf = WWW::Salesforce->new(
-    api_host => Mojo::URL->new('https://ca13.salesforce.com'),
-    consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
-    consumer_secret => 'asdfasdjkfh234123513245',
-    username => 'foo@bar.com',
-    password => 'mypassword',
-    pass_token => 'mypasswordtoken123214123521345',
+	api_host => Mojo::URL->new('https://ca13.salesforce.com'),
+	consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
+	consumer_secret => 'asdfasdjkfh234123513245',
+	username => 'foo@bar.com',
+	password => 'mypassword',
+	pass_token => 'mypasswordtoken123214123521345',
 );
 $sf->catch(sub {die pop});
 
@@ -161,32 +161,67 @@ The username is the email address you set for your user account in Salesforce.  
 
 [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all methods from [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter) and adds the following new ones.
 
-## api\_path()
+## api\_path
 
 ```perl
-my $path = $sf->api_path;
+# blocking
+my $path = $sf->api_path();
+
+# non-blocking
+$sf->api_path(
+	my ($sf,$path) = @_;
+	say "The api path is $path";
+);
 ```
 
 This is the path to the API version we're using.  It's always the latest version of the [Salesforce API](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_versions.htm).
+On error, this method will emit an [error](https://metacpan.org/pod/Mojo::EventEmitter#error) event. You should [catch](https://metacpan.org/pod/Mojo::EventEmitter#catch) errors as the caller.
 
-## login()
-
-	$sf->login();
-
-This method will reset your ```access_token``` and go through the [Salesforce Username-Password OAuth Authentication Flow](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm) again.
-Calling this method on your own is not necessary as any API call will call ```login``` if necessary.  This could be helpful if you're changing ```api_host```s on your instance.
-This method will update your ```access_token``` on a successful login.
-
-## query( $query\_string )
+## login
 
 ```perl
-my $records_array_ref = $sf->query('Select Id, Name, Phone from Account');
-say Dumper $records_array_ref;
+# blocking
+$sf = $sf->login(); # allows for method-chaining
+
+# non-blocking
+$sf->login(
+	my ($sf, $token) = @_;
+	say "Our auth token is: $token";
+);
+```
+
+This method will go through the [Salesforce Username-Password OAuth Authentication Flow](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm) process if it needs to.
+Calling this method on your own is not necessary as any API call will call ```login``` if necessary.  This could be helpful if you're changing ```api_host```s on your instance.
+This method will update your ```access_token``` on a successful login.
+On error, this method will emit an [error](https://metacpan.org/pod/Mojo::EventEmitter#error) event. You should [catch](https://metacpan.org/pod/Mojo::EventEmitter#catch) errors as the caller.
+
+## proxy
+
+```perl
+my $proxy = $sf->proxy;
+$sf       = $sf->proxy(Mojo::UserAgent::Proxy->new);
+```
+
+This method provides an accessor to the [Mojo::UserAgent's proxy attribute](https://metacpan.org/pod/Mojo::UserAgent#proxy).  See [Mojo::UserAgent::Proxy](https://metacpan.org/pod/Mojo::UserAgent::Proxy) for more information.
+
+## query
+
+```perl
+# blocking
+my $results = $sf->query('Select Id, Name, Phone from Account');
+say Dumper $results;
+
+# non-blocking
+$sf->query('select Id, Name, Phone from Account', sub {
+	my ($sf, $results) = @_;
+	say Dumper $results;
+});
 ```
 
 This method calls the Salesforce [Query method](http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm).  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
+On error, this method will emit an [error](https://metacpan.org/pod/Mojo::EventEmitter#error) event. You should [catch](https://metacpan.org/pod/Mojo::EventEmitter#catch) errors as the caller.
 
-## ua()
+## ua
 
 ```perl
 my $ua = $sf->ua;
