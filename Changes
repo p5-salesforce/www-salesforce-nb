@@ -1,5 +1,9 @@
 Revision history for Perl extension WWW::Salesforce.
 
+0.002
+	- created logout()
+	- updated lots of documentation
+
 0.001
 	- created login() for both blocking and non-blocking
 	- created query() for both blocking and non-blocking

@@ -6,7 +6,7 @@ use Mojo::IOLoop;
 use Mojo::URL;
 use Mojo::UserAgent;
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 has '_api_path';
 has '_ua';
@@ -101,6 +101,14 @@ sub login {
 		my ( $delay, $err ) = @_;
 		$self->emit(error=>$err);
 	})->wait();
+}
+
+sub logout {
+	my $self = shift;
+	$self->_api_path(undef);
+	$self->_access_token(undef);
+	$self->_access_time(0);
+	return $self;
 }
 
 sub proxy {
@@ -399,6 +407,13 @@ process if you need to regenerate your authentication token.
 Calling this method on your own is not necessary as any API call will call C<login> if necessary.  This could be helpful if you're changing C<api_host>s on your instance.
 This method will update your C<access_token> on a successful login.
 On error, this method will emit an C<error> event. You should catch errors as the caller.
+
+=head2 logout
+
+	$sf = $sf->logout(); # allows for method chaining.
+
+This method does not actually make any call to L<Salesforce|http://www.salesforce.com>.
+It only removes knowledge of your access token so that you can login again on your next API call.
 
 =head2 proxy
 

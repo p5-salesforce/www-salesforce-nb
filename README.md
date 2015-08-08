@@ -195,6 +195,15 @@ Calling this method on your own is not necessary as any API call will call ```lo
 This method will update your ```access_token``` on a successful login.
 On error, this method will emit an [error](https://metacpan.org/pod/Mojo::EventEmitter#error) event. You should [catch](https://metacpan.org/pod/Mojo::EventEmitter#catch) errors as the caller.
 
+## logout
+
+```perl
+$sf = $sf->logout(); # allows for method-chaining
+```
+
+This method does not actually make any call to [Salesforce](http://www.salesforce.com).
+It only removes knowledge of your access token so that you can login again on your next API call.
+
 ## proxy
 
 ```perl
