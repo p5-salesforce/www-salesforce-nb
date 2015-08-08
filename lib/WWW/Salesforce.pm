@@ -112,7 +112,10 @@ sub logout {
 }
 
 sub proxy {
-	shift->ua()->proxy(@_);
+	my $self = shift;
+	return $self->ua()->proxy unless @_;
+	$self->ua()->proxy(@_);
+	return $self;
 }
 
 sub query {
