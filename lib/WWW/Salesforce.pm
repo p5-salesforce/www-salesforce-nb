@@ -27,8 +27,7 @@ sub api_path {
 	my ($self, $cb) = @_;
 	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
 	if ( my $path = $self->_api_path ) {
-		return $path unless $cb;
-		return $self->$cb($path);
+		return $cb? $self->$cb($path): $path;
 	}
 	unless ($cb) {
 		my $tx = $self->ua->get( Mojo::URL->new($self->api_host)->path("/services/data"), $self->_headers() );
@@ -43,8 +42,7 @@ sub api_path {
 			my ($delay, $ua, $tx) = @_;
 			return $self->$cb($self->_error($tx->error->{code}, $tx->error->{message}, $tx->res->body)) unless $tx->success;
 			my $path = $self->_api_latest($tx->res->json);
-			return $self->$cb(undef) unless $path;
-			$self->_api_path($path);
+			$self->_api_path($path) if $path;
 			return $self->$cb($path);
 		}
 	)->catch(sub {
@@ -57,9 +55,9 @@ sub api_path {
 sub login {
 	my ($self, $cb) = @_;
 	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
-
-	# force a new login on each call
-	$self->_access_token(undef);
+	unless ( $self->_login_required ) {
+		return $cb? $self->$cb($self->_access_token): $self;
+	}
 
 	my $url = Mojo::URL->new($self->api_host)->path("/services/oauth2/token");
 	my $form = {
@@ -112,7 +110,7 @@ sub query {
 	# blocking request
 	unless ( $cb ) {
 		return [] unless $query;
-		$self->_require_login(); # handles renewing the auth token if necessary
+		$self->login(); # handles renewing the auth token if necessary
 		my $results = [];
 		my $url = Mojo::URL->new($self->api_host)->path($self->api_path)->path('query/');
 		my $tx = $self->ua->get( $url, $self->_headers(), form => { q => $query, } );
@@ -124,7 +122,7 @@ sub query {
 
 			last if $json->{done};
 			last unless $json->{nextRecordsUrl};
-			$self->_require_login();
+			$self->login();
 			$url = Mojo::URL->new($self->api_host)->path($json->{nextRecordsUrl});
 			$tx = $self->ua->get( $url, $self->_headers() );
 		}
@@ -135,10 +133,10 @@ sub query {
 	return Mojo::IOLoop->delay(
 		sub {
 			my $delay = shift;
-			$self->_require_login( $delay->begin(0));
+			$self->login($delay->begin(0));
 		},
 		sub {
-			my ( $delay, $token ) = @_;
+			my ( $delay, $sf, $token ) = @_;
 			return $self->$cb([]) unless $token;
 			my $url = Mojo::URL->new($self->api_host)->path($self->_api_path)->path('query/');
 			$delay->data(self=>$self,cb=>$cb);
@@ -207,6 +205,17 @@ sub _headers {
 	return $header;
 }
 
+# returns true (1) if login required, else undef
+sub _login_required {
+	my $self = shift;
+	if( $self->_access_token && $self->api_host && $self->_api_path ) {
+		if ( my $time = $self->_access_time ) {
+			return undef if ( int((time() - $time)/60) < 30 );
+		}
+	}
+	return 1;
+}
+
 sub _query_results_nb {
 	my ($delay, $ua, $tx ) = @_;
 	my $self = $delay->data('self') || die "Can't find SF object";
@@ -221,36 +230,6 @@ sub _query_results_nb {
 	my $url = Mojo::URL->new($self->api_host)->path($data->{nextRecordsUrl});
 	$delay->steps(\&_query_results_nb);
 	$self->ua->get($url, $self->_headers(), $delay->begin(0) );
-}
-
-# run this on every API call to ensure we stay logged in as tokens time out
-sub _require_login {
-	my ($self, $cb) = @_;
-	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
-	if( $self->_access_token ) {
-		if ( my $time = $self->_access_time ) {
-			if ( int((time() - $time)/60) < 30 ) {
-				# we should be good at this point.
-				return $self->_access_token unless $cb;
-				return $self->$cb($self->_access_token);
-			}
-		}
-	}
-	# aww crap, we need to login.
-	return $self->login() unless $cb;
-	return Mojo::IOLoop->delay(
-		sub {
-			my $delay = shift;
-			$self->login($delay->begin(0));
-		},
-		sub {
-			my ($delay, $sf, $token) = @_;
-			return $sf->$cb($token);
-		}
-	)->catch(sub {
-		my ( $delay, $err ) = @_;
-		$self->emit(error=>$err);
-	})->wait();
 }
 
 1;
