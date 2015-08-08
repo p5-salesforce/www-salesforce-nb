@@ -103,6 +103,10 @@ sub login {
 	})->wait();
 }
 
+sub proxy {
+	shift->ua()->proxy(@_);
+}
+
 sub query {
 	my ($self, $query, $cb) = @_;
 	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
@@ -216,6 +220,7 @@ sub _login_required {
 	return 1;
 }
 
+# keep creating next delay steps until we have all of the query data.
 sub _query_results_nb {
 	my ($delay, $ua, $tx ) = @_;
 	my $self = $delay->data('self') || die "Can't find SF object";
@@ -364,28 +369,59 @@ The username is the email address you set for your user account in Salesforce.  
 
 L<WWW::Salesforce> inherits all methods from L<Mojo::EventEmitter> and adds the following new ones.
 
-=head2 api_path()
+=head2 api_path
 
-	my $path = $sf->api_path;
+	# blocking
+	my $path = $sf->api_path();
+
+	# non-blocking
+	$sf->api_path(
+		my ($sf,$path) = @_;
+		say "The api path is $path";
+	);
 
 This is the path to the API version we're using.  We're always going to be using the latest API version available.
+On error, this method will emit an C<error> event. You should catch errors as the caller.
 
-=head2 login()
+=head2 login
 
-	$sf->login();
+	# blocking
+	$sf = $sf->login(); # allows for method-chaining
+
+	# non-blocking
+	$sf->login(
+		my ($sf, $token) = @_;
+		say "Our auth token is: $token";
+	);
 
 This method will reset your C<access_token> and go through the L<Salesforce Username-Password OAuth Authentication Flow|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm> again.
 Calling this method on your own is not necessary as any API call will call C<login> if necessary.  This could be helpful if you're changing C<api_host>s on your instance.
 This method will update your C<access_token> on a successful login.
+On error, this method will emit an C<error> event. You should catch errors as the caller.
 
-=head2 query( $query_string )
+=head2 proxy
 
-	my $records_array_ref = $sf->query('Select Id, Name, Phone from Account');
-	say Dumper $records_array_ref;
+	my $proxy = $sf->proxy;
+	$sf       = $sf->proxy(Mojo::UserAgent::Proxy->new);
+
+This method provides an accessor to the L<Mojo::UserAgent#proxy> attribute.  See L<Mojo::UserAgent#proxy> and L<Mojo::UserAgent::Proxy> for more information.
+
+=head2 query
+
+	# blocking
+	my $results = $sf->query('Select Id, Name, Phone from Account');
+	say Dumper $results;
+
+	# non-blocking
+	$sf->query('select Id, Name, Phone from Account', sub {
+		my ($sf, $results) = @_;
+		say Dumper $results;
+	});
 
 This method calls the Salesforce L<Query method|http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm>.  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
+On error, this method will emit an C<error> event. You should catch errors as the caller.
 
-=head2 ua()
+=head2 ua
 
 	my $ua = $sf->ua;
 
