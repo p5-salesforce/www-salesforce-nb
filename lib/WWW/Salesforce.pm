@@ -293,10 +293,8 @@ Non-blocking:
 
 	#!/usr/bin/env perl
 	use Mojo::Base -strict;
-	use Mojo::IOLoop;
 	use WWW::Salesforce;
 
-	Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
 	my $sf = WWW::Salesforce->new(
 		api_host => Mojo::URL->new('https://ca13.salesforce.com'),
 		consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
