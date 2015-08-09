@@ -175,7 +175,7 @@ $sf->api_path(
 ```
 
 This is the path to the API version we're using.  It's always the latest version of the [Salesforce API](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_versions.htm).
-On error, this method will emit an error event. You should ```perl $sf->catch( sub { say "Erorr: ".pop});``` errors as the caller.
+On error, this method will emit an error event. You should ```perl $sf->catch( sub { say "Error: ".pop});``` errors as the caller.
 
 ## login
 
@@ -193,7 +193,7 @@ $sf->login(
 This method will go through the [Salesforce Username-Password OAuth Authentication Flow](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm) process if it needs to.
 Calling this method on your own is not necessary as any API call will call ```login``` if necessary.  This could be helpful if you're changing ```api_host```s on your instance.
 This method will update your ```access_token``` on a successful login.
-On error, this method will emit an error event. You should ```$sf->catch( sub { say "Erorr: ".pop});``` errors as the caller.
+On error, this method will emit an error event. You should ```$sf->catch( sub { say "Error: ".pop});``` errors as the caller.
 
 ## logout
 
@@ -219,7 +219,7 @@ $sf->query('select Id, Name, Phone from Account', sub {
 ```
 
 This method calls the Salesforce [Query method](http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm).  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
-On error, this method will emit an error event. You should ```$sf->catch( sub { say "Erorr: ".pop});``` errors as the caller.
+On error, this method will emit an error event. You should ```$sf->catch( sub { say "Error: ".pop});``` errors as the caller.
 
 # AUTHOR
 
