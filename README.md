@@ -78,7 +78,7 @@ $sf->query('select Name from Account',sub {
 
 # DESCRIPTION
 
-The [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) class is a subclass of [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter).  It implements all methods of [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter) and adds a few more.
+The [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) class is a subclass of [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent).  It implements all methods of [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) and adds a few more.
 
 [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) allows us to connect to [Salesforce](http://www.salesforce.com/)'s service to get our data using their RESTful API.
 
@@ -91,11 +91,11 @@ The [Salesforce Username-Password OAuth Authentication Flow](http://www.salesfor
 
 # EVENTS
 
-[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all events from [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter).
+[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all events from [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent).
 
 # ATTRIBUTES
 
-[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all attributes from [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter) and adds the following new ones.
+[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all attributes from [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) and adds the following new ones.
 
 ## api\_host
 
@@ -159,7 +159,7 @@ The username is the email address you set for your user account in Salesforce.  
 
 # METHODS
 
-[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all methods from [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter) and adds the following new ones.
+[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all methods from [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) and adds the following new ones.
 
 ## api\_path
 
@@ -175,7 +175,7 @@ $sf->api_path(
 ```
 
 This is the path to the API version we're using.  It's always the latest version of the [Salesforce API](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_versions.htm).
-On error, this method will emit an [error](https://metacpan.org/pod/Mojo::EventEmitter#error) event. You should [catch](https://metacpan.org/pod/Mojo::EventEmitter#catch) errors as the caller.
+On error, this method will emit an [error](https://metacpan.org/pod/Mojo::UserAgent#error) event. You should [catch](https://metacpan.org/pod/Mojo::UserAgent#catch) errors as the caller.
 
 ## login
 
@@ -193,7 +193,7 @@ $sf->login(
 This method will go through the [Salesforce Username-Password OAuth Authentication Flow](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm) process if it needs to.
 Calling this method on your own is not necessary as any API call will call ```login``` if necessary.  This could be helpful if you're changing ```api_host```s on your instance.
 This method will update your ```access_token``` on a successful login.
-On error, this method will emit an [error](https://metacpan.org/pod/Mojo::EventEmitter#error) event. You should [catch](https://metacpan.org/pod/Mojo::EventEmitter#catch) errors as the caller.
+On error, this method will emit an [error](https://metacpan.org/pod/Mojo::UserAgent#error) event. You should [catch](https://metacpan.org/pod/Mojo::UserAgent#catch) errors as the caller.
 
 ## logout
 
@@ -203,15 +203,6 @@ $sf = $sf->logout(); # allows for method-chaining
 
 This method does not actually make any call to [Salesforce](http://www.salesforce.com).
 It only removes knowledge of your access token so that you can login again on your next API call.
-
-## proxy
-
-```perl
-my $proxy = $sf->proxy;
-$sf       = $sf->proxy(Mojo::UserAgent::Proxy->new);
-```
-
-This method provides an accessor to the [Mojo::UserAgent's proxy attribute](https://metacpan.org/pod/Mojo::UserAgent#proxy).  See [Mojo::UserAgent::Proxy](https://metacpan.org/pod/Mojo::UserAgent::Proxy) for more information.
 
 ## query
 
@@ -228,15 +219,7 @@ $sf->query('select Id, Name, Phone from Account', sub {
 ```
 
 This method calls the Salesforce [Query method](http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm).  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
-On error, this method will emit an [error](https://metacpan.org/pod/Mojo::EventEmitter#error) event. You should [catch](https://metacpan.org/pod/Mojo::EventEmitter#catch) errors as the caller.
-
-## ua
-
-```perl
-my $ua = $sf->ua;
-```
-
-This method gives you access to the [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent)  we use to connect to the [Salesforce](http://www.salesforce.com/) services.
+On error, this method will emit an [error](https://metacpan.org/pod/Mojo::UserAgent#error) event. You should [catch](https://metacpan.org/pod/Mojo::UserAgent#catch) errors as the caller.
 
 # AUTHOR
 

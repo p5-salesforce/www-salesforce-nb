@@ -1,15 +1,14 @@
 package WWW::Salesforce;
 
-use Mojo::Base 'Mojo::EventEmitter';
+use Mojo::Base 'Mojo::UserAgent';
 use Mojo::Date;
 use Mojo::IOLoop;
 use Mojo::URL;
 use Mojo::UserAgent;
 
-our $VERSION = '0.002';
+our $VERSION = '0.003';
 
 has '_api_path';
-has '_ua';
 has '_access_token';
 has '_access_time';
 
@@ -30,13 +29,13 @@ sub api_path {
 		return $cb? $self->$cb($path): $path;
 	}
 	unless ($cb) {
-		my $tx = $self->ua->get( Mojo::URL->new($self->api_host)->path("/services/data"), $self->_headers() );
+		my $tx = $self->get( Mojo::URL->new($self->api_host)->path("/services/data"), $self->_headers() );
 		return $self->_error( $tx->error->{code}, $tx->error->{message}, $tx->res->body ) unless $tx->success;
 		return $self->_api_latest($tx->success->json);
 	}
 	return Mojo::IOLoop->delay(
 		sub {
-			$self->ua->get( Mojo::URL->new($self->api_host)->path("/services/data"), $self->_headers(), shift->begin(0) );
+			$self->get( Mojo::URL->new($self->api_host)->path("/services/data"), $self->_headers(), shift->begin(0) );
 		},
 		sub {
 			my ($delay, $ua, $tx) = @_;
@@ -70,7 +69,7 @@ sub login {
 
 	# blocking request
 	unless ($cb) {
-		my $tx = $self->ua->post($url, $self->_headers(), form => $form);
+		my $tx = $self->post($url, $self->_headers(), form => $form);
 		return $self->_error($tx->error->{code}, $tx->error->{message}, $tx->res->body) unless $tx->success;
 		my $data = $tx->res->json;
 		$self->api_host($data->{instance_url});
@@ -82,7 +81,7 @@ sub login {
 
 	# non-blocking request
 	return Mojo::IOLoop->delay(
-		sub { $self->ua->post($url, $self->_headers(), form => $form, shift->begin(0)); },
+		sub { $self->post($url, $self->_headers(), form => $form, shift->begin(0)); },
 		sub {
 			my ($delay, $ua, $tx) = @_;
 			$self->_error( $tx->error->{code}, $tx->error->{message}, $tx->res->body ) unless $tx->success;
@@ -111,13 +110,6 @@ sub logout {
 	return $self;
 }
 
-sub proxy {
-	my $self = shift;
-	return $self->ua()->proxy unless @_;
-	$self->ua()->proxy(@_);
-	return $self;
-}
-
 sub query {
 	my ($self, $query, $cb) = @_;
 	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
@@ -128,7 +120,7 @@ sub query {
 		$self->login(); # handles renewing the auth token if necessary
 		my $results = [];
 		my $url = Mojo::URL->new($self->api_host)->path($self->api_path)->path('query/');
-		my $tx = $self->ua->get( $url, $self->_headers(), form => { q => $query, } );
+		my $tx = $self->get( $url, $self->_headers(), form => { q => $query, } );
 		while(1) {
 			$self->_error( $tx->error->{code}, $tx->error->{message}, $tx->res->body ) unless( $tx->success );
 			my $json = $tx->res->json;
@@ -139,7 +131,7 @@ sub query {
 			last unless $json->{nextRecordsUrl};
 			$self->login();
 			$url = Mojo::URL->new($self->api_host)->path($json->{nextRecordsUrl});
-			$tx = $self->ua->get( $url, $self->_headers() );
+			$tx = $self->get( $url, $self->_headers() );
 		}
 		return $results;
 	}
@@ -156,26 +148,12 @@ sub query {
 			my $url = Mojo::URL->new($self->api_host)->path($self->_api_path)->path('query/');
 			$delay->data(self=>$self,cb=>$cb);
 			$delay->steps(\&_query_results_nb);
-			$self->ua->get($url, $self->_headers(), form => {q=>$query,}, $delay->begin(0) );
+			$self->get($url, $self->_headers(), form => {q=>$query,}, $delay->begin(0) );
 		}
 	)->catch(sub {
 		my ( $delay, $err ) = @_;
 		$self->emit(error=>$err);
 	})->wait();
-}
-
-sub ua {
-	my $self = shift;
-	my $ua = $self->_ua;
-	return $ua if $ua;
-	$ua = Mojo::UserAgent->new(inactivity_timeout=>50);
-	$ua->on('error' => sub {
-		my ($e, $err) = @_;
-		#catch and throw
-		$self->emit(error=>$err);
-	});
-	$self->_ua($ua);
-	return $ua;
 }
 
 # parse through the API path results to select the latest available API version.
@@ -245,7 +223,7 @@ sub _query_results_nb {
 	return $self->$cb($records) unless $data->{nextRecordsUrl};
 	my $url = Mojo::URL->new($self->api_host)->path($data->{nextRecordsUrl});
 	$delay->steps(\&_query_results_nb);
-	$self->ua->get($url, $self->_headers(), $delay->begin(0) );
+	$self->get($url, $self->_headers(), $delay->begin(0) );
 }
 
 1;
@@ -309,7 +287,7 @@ Non-blocking:
 
 =head1 DESCRIPTION
 
-The L<WWW::Salesforce> class is a subclass of L<Mojo::EventEmitter>.  It implements all methods of L<Mojo::EventEmitter> and adds a few more.
+The L<WWW::Salesforce> class is a subclass of L<Mojo::UserAgent>.  It implements all methods of L<Mojo::UserAgent> and adds a few more.
 
 L<WWW::Salesforce> allows us to connect to L<Salesforce|http://www.salesforce.com/>'s service to get our data using their RESTful API.
 
@@ -322,11 +300,11 @@ The L<Salesforce Username-Password OAuth Authentication Flow|http://www.salesfor
 
 =head1 EVENTS
 
-L<WWW::Salesforce> inherits all events from L<Mojo::EventEmitter>.
+L<WWW::Salesforce> inherits all events from L<Mojo::UserAgent>.
 
 =head1 ATTRIBUTES
 
-L<WWW::Salesforce> inherits all attributes from L<Mojo::EventEmitter> and adds the following new ones.
+L<WWW::Salesforce> inherits all attributes from L<Mojo::UserAgent> and adds the following new ones.
 
 =head2 api_host
 
@@ -378,7 +356,7 @@ The username is the email address you set for your user account in Salesforce.  
 
 =head1 METHODS
 
-L<WWW::Salesforce> inherits all methods from L<Mojo::EventEmitter> and adds the following new ones.
+L<WWW::Salesforce> inherits all methods from L<Mojo::UserAgent> and adds the following new ones.
 
 =head2 api_path
 
@@ -418,13 +396,6 @@ On error, this method will emit an C<error> event. You should catch errors as th
 This method does not actually make any call to L<Salesforce|http://www.salesforce.com>.
 It only removes knowledge of your access token so that you can login again on your next API call.
 
-=head2 proxy
-
-	my $proxy = $sf->proxy;
-	$sf       = $sf->proxy(Mojo::UserAgent::Proxy->new);
-
-This method provides an accessor to the L<Mojo::UserAgent#proxy> attribute.  See L<Mojo::UserAgent#proxy> and L<Mojo::UserAgent::Proxy> for more information.
-
 =head2 query
 
 	# blocking
@@ -439,12 +410,6 @@ This method provides an accessor to the L<Mojo::UserAgent#proxy> attribute.  See
 
 This method calls the Salesforce L<Query method|http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm>.  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
 On error, this method will emit an C<error> event. You should catch errors as the caller.
-
-=head2 ua
-
-	my $ua = $sf->ua;
-
-This method gives you access to the C<Mojo::UserAgent> we use to connect to the L<Salesforce|http://www.salesforce.com/> services.
 
 =head1 AUTHOR
 
