@@ -99,7 +99,9 @@ The [Salesforce Username-Password OAuth Authentication Flow](http://www.salesfor
 
 ```perl
 my $host = $sf->api_host;
-$sf = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') ); # allows for method-chaining
+# Setting attributes returns your [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/)
+# object to allow method-chaining
+$sf = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') );
 ```
 
 This is the base host of the API we're using.  This allows you to use any of your sandbox or live data areas easily.
