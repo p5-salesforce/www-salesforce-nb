@@ -110,7 +110,7 @@ Note, changing this attribute might invalidate your access token after you've lo
 
 ```perl
 my $key = $sf->consumer_key;
-$sf = $sf->consumer_key( 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf' ); # allows for method-chaining
+$sf = $sf->consumer_key( 'alksdlksdf' ); # allows for method-chaining
 ```
 
 The Consumer Key (also referred to as the client\_id in the Saleforce documentation) is part of your [Connected App](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm).  It is a required field to be able to login.
@@ -121,7 +121,7 @@ Note, changing this attribute after the creation of your new instance is kind of
 
 ```perl
 my $secret = $sf->consumer_secret;
-$sf = $sf->consumer_secret( 'asdfasdjkfh234123513245' ); # allows for method-chaining
+$sf = $sf->consumer_secret( 'asdfas123513245' ); # allows for method-chaining
 ```
 
 The Consumer Secret (also referred to as the client\_secret in the Saleforce documentation) is part of your [Connected App](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm).  It is a required field to be able to login.
@@ -132,7 +132,7 @@ Note, changing this attribute after the creation of your new instance is kind of
 
 ```perl
 my $token = $sf->pass_token;
-$sf = $sf->pass_token( 'mypasswordtoken123214123521345' ); # allows for method-chaining
+$sf = $sf->pass_token( 'mypasswordtoken145' ); # allows for method-chaining
 ```
 
 The password token is a Salesforce-generated token to go along with your password.  It is appended to the end of your password and used only during login authentication.
