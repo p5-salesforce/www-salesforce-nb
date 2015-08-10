@@ -19,9 +19,7 @@ It is EXTREMELY experimental at this point.  Use it at your own risk.  You've be
 	* [api\_path](#api_path)
 	* [login](#login)
 	* [logout](#logout)
-	* [proxy](#proxy)
 	* [query](#query)
-	* [ua](#ua)
 * [Author](#author)
 * [Bugs](#bugs)
 
