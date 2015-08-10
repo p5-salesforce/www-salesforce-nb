@@ -30,7 +30,7 @@ sub api_path {
 	}
 	unless ($cb) {
 		my $tx = $self->get( Mojo::URL->new($self->api_host)->path("/services/data"), $self->_headers() );
-		return $self->_error( $tx->error->{code}, $tx->error->{message}, $tx->res->body ) unless $tx->success;
+		return $self->_error($tx->error, $tx->res->json) unless $tx->success;
 		return $self->_api_latest($tx->success->json);
 	}
 	return Mojo::IOLoop->delay(
@@ -39,7 +39,7 @@ sub api_path {
 		},
 		sub {
 			my ($delay, $ua, $tx) = @_;
-			return $self->$cb($self->_error($tx->error->{code}, $tx->error->{message}, $tx->res->body)) unless $tx->success;
+			return $self->_error($tx->error, $tx->res->json) unless $tx->success;
 			my $path = $self->_api_latest($tx->res->json);
 			$self->_api_path($path) if $path;
 			return $self->$cb($path);
@@ -70,7 +70,7 @@ sub login {
 	# blocking request
 	unless ($cb) {
 		my $tx = $self->post($url, $self->_headers(), form => $form);
-		return $self->_error($tx->error->{code}, $tx->error->{message}, $tx->res->body) unless $tx->success;
+		return $self->_error($tx->error, $tx->res->json) unless $tx->success;
 		my $data = $tx->res->json;
 		$self->api_host($data->{instance_url});
 		$self->_access_token($data->{access_token});
@@ -84,7 +84,7 @@ sub login {
 		sub { $self->post($url, $self->_headers(), form => $form, shift->begin(0)); },
 		sub {
 			my ($delay, $ua, $tx) = @_;
-			$self->_error( $tx->error->{code}, $tx->error->{message}, $tx->res->body ) unless $tx->success;
+			return $self->_error($tx->error, $tx->res->json) unless $tx->success;
 			my $data = $tx->res->json;
 			$self->api_host(Mojo::URL->new($data->{instance_url}));
 			$self->_access_token($data->{access_token});
@@ -122,7 +122,7 @@ sub query {
 		my $url = Mojo::URL->new($self->api_host)->path($self->api_path)->path('query/');
 		my $tx = $self->get( $url, $self->_headers(), form => { q => $query, } );
 		while(1) {
-			$self->_error( $tx->error->{code}, $tx->error->{message}, $tx->res->body ) unless( $tx->success );
+			return $self->_error($tx->error, $tx->res->json) unless $tx->success;
 			my $json = $tx->res->json;
 			last unless $json && $json->{records};
 			push @{$results}, @{$json->{records}};
@@ -175,11 +175,17 @@ sub _api_latest {
 
 # emit an error
 sub _error {
-	my ( $self, $code, $msg, $body ) = @_;
-	$code ||= 500;
-	$msg ||= '';
-	$body ||= '';
-	$self->emit(error=>"ERROR: $code, $msg: $body");
+	my ( $self, $error, $data ) = @_;
+	$error = {} unless $error && ref($error) eq 'HASH';
+	$data = [] unless $data && ref($data) eq 'ARRAY';
+	$error->{code} ||= 500;
+	$error->{message} ||= '';
+	my $message = $error->{code}." ".$error->{message}.": ";
+	for my $err ( @{$data} ) {
+		$message .= ($err->{message} || '').': ';
+		$message .= $err->{errorCode} ||= '';
+	}
+	$self->emit(error=>"ERROR: $message");
 	return undef;
 }
 
@@ -214,7 +220,7 @@ sub _query_results_nb {
 	my ($delay, $ua, $tx ) = @_;
 	my $self = $delay->data('self') || die "Can't find SF object";
 	my $cb = $delay->data('cb') || die "Can't find CallBack";
-	return $self->_error( $tx->error->{code}, $tx->error->{message}, $tx->res->body ) unless $tx->success;
+	return $self->_error($tx->error, $tx->res->json) unless $tx->success;
 	my $data = $tx->res->json;
 	my $records = $delay->data('records') || [];
 	push @{$records}, @{$data->{records}};
@@ -411,6 +417,22 @@ It only removes knowledge of your access token so that you can login again on yo
 This method calls the Salesforce L<Query method|http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm>.  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
 On error, this method will emit an C<error> event. You should catch errors as the caller.
 
+=head1 ERROR HANDLING
+
+Any and all errors that occur will emit an C<error> event. Events that aren't caught will trigger fatal exceptions. Catching errors is simple and allows you to log your error events any way you like:
+
+	my $sf = WWW::Salesforce->new(...);
+	$sf->catch(sub {
+		my ($e, $error) = @_;
+		# log it with whatever logging system you're using
+		$log->error($error);
+		# dump it to STDERR
+		warn $error;
+		# exit, maybe?
+		exit(1);
+	});
+	my $result_wont_happen = $sf->query('bad query statement to produce error');
+
 =head1 AUTHOR
 
 Chase Whitener << <cwhitener at gmail.com> >>
@@ -436,9 +458,7 @@ L<https://github.com/genio/www-salesforce-nb>
 
 =back
 
-
 =head1 ACKNOWLEDGEMENTS
-
 
 =head1 LICENSE AND COPYRIGHT
 

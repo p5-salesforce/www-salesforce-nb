@@ -220,6 +220,24 @@ $sf->query('select Id, Name, Phone from Account', sub {
 This method calls the Salesforce [Query method](http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm).  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
 On error, this method will emit an error event. You should ```$sf->catch( sub { say "Error: ".pop});``` errors as the caller.
 
+# ERROR HANDLING
+
+Any and all errors that occur will emit an ```error``` event. Events that aren't caught will trigger fatal exceptions. Catching errors is simple and allows you to log your error events any way you like:
+
+```perl
+my $sf = WWW::Salesforce->new(...);
+$sf->catch(sub {
+	my ($e, $error) = @_;
+	# log it with whatever logging system you're using
+	$log->error($error);
+	# dump it to STDERR
+	warn $error;
+	# exit, maybe?
+	exit(1);
+});
+my $result_wont_happen = $sf->query('bad query statement to produce error');
+```
+
 # AUTHOR
 
 Chase Whitener -- cwhitener@gmail.com

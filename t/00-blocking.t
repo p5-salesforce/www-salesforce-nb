@@ -18,7 +18,7 @@ BEGIN {
 # Silence
 app->log->level('fatal');
 get '/' => {text => 'works!'};
-get '/error/query' => {text=>'what?!?', status=>401};
+get '/error/query' => {json=>[{errorCode=>'foo',message=>'what?!?'}], status=>401};
 get '/services/data' => sub {
 	my $c = shift;
 	$c->render(json => [
@@ -111,7 +111,7 @@ is($sf->login()->_access_token(), '123455663452abacbabababababababanenenenene', 
 	my $path = $sf->api_path();
 	$sf->_api_path('/error/');
 	$sf->query('test');
-	is($error, 'ERROR: 401, Unauthorized: what?!?', 'error handling: got proper error message');
+	is($error, 'ERROR: 401 Unauthorized: what?!?: foo', 'error handling: got proper error message');
 	#reset back to normal
 	$sf->api_path($path);
 }
