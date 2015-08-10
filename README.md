@@ -20,6 +20,7 @@ It is EXTREMELY experimental at this point.  Use it at your own risk.  You've be
 	* [login](#login)
 	* [logout](#logout)
 	* [query](#query)
+* [Error Handling](#error-handling)
 * [Author](#author)
 * [Bugs](#bugs)
 
