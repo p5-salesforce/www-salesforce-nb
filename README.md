@@ -101,7 +101,7 @@ This is a special event for errors.  It is fatal if unhandled and stops the curr
 
 ## ATTRIBUTES
 
-[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all attributes from [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) and adds the following new ones.
+[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) makes the following attributes available.
 
 ### api\_host
 
@@ -113,7 +113,7 @@ $sf = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') );
 
 This is the base host of the API we're using.  This allows you to use any of your sandbox or live data areas easily.
 
-Note, changing this attribute might invalidate your access token after you've logged in.
+Note, changing this attribute might invalidate your access token after you've logged in. You may want to [logout](#logout) before changing this setting.
 
 ### consumer\_key
 
@@ -124,7 +124,7 @@ $sf = $sf->consumer_key( 'alksdlksdf' ); # allows for method-chaining
 
 The Consumer Key (also referred to as the client\_id in the Saleforce documentation) is part of your [Connected App](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm).  It is a required field to be able to login.
 
-Note, changing this attribute after the creation of your new instance is kind of pointless since it's only used to generate the access token at the beginning.
+Note, this attribute is only used to generate the access token during [login](#login).  You may want to [logout](#logout) before changing this setting.
 
 ### consumer\_secret
 
@@ -135,7 +135,7 @@ $sf = $sf->consumer_secret( 'asdfas123513245' ); # allows for method-chaining
 
 The Consumer Secret (also referred to as the client\_secret in the Saleforce documentation) is part of your [Connected App](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm).  It is a required field to be able to login.
 
-Note, changing this attribute after the creation of your new instance is kind of pointless since it's only used to generate the access token at the beginning.
+Note, this attribute is only used to generate the access token during [login](#login).  You may want to [logout](#logout) before changing this setting.
 
 ### pass\_token
 
@@ -146,6 +146,8 @@ $sf = $sf->pass_token( 'mypasswordtoken145' ); # allows for method-chaining
 
 The password token is a Salesforce-generated token to go along with your password.  It is appended to the end of your password and used only during login authentication.
 
+Note, this attribute is only used to generate the access token during [login](#login).  You may want to [logout](#logout) before changing this setting.
+
 ### password
 
 ```perl
@@ -153,7 +155,9 @@ my $password = $sf->password;
 $sf = $sf->password( 'mypassword' ); # allows for method-chaining
 ```
 
-The password is the password you set for your user account in Salesforce.  This attribute is only used during login authentication.
+The password is the password you set for your user account in Salesforce.
+
+Note, this attribute is only used to generate the access token during [login](#login).  You may want to [logout](#logout) before changing this setting.
 
 ### username
 
@@ -162,7 +166,8 @@ my $username = $sf->username;
 $sf = $sf->username( 'foo@bar.com' ); # allows for method-chaining
 ```
 
-The username is the email address you set for your user account in Salesforce.  This attribute is only used during login authentication.
+The username is the email address you set for your user account in Salesforce.
+Note, this attribute is only used to generate the access token during [login](#login).  You may want to [logout](#logout) before changing this setting.
 
 ## DELEGATES
 
@@ -220,7 +225,7 @@ $sf->api_path(
 ```
 
 This is the path to the API version we're using.  It's always the latest version of the [Salesforce API](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_versions.htm).
-On error, this method will emit an error event. You should ```perl $sf->catch( sub { say "Error: ".pop});``` errors as the caller.
+On error, this method will emit an [error](#error) event. You should [catch](#catch) errors as the caller.
 
 ### login
 
@@ -238,7 +243,7 @@ $sf->login(
 This method will go through the [Salesforce Username-Password OAuth Authentication Flow](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm) process if it needs to.
 Calling this method on your own is not necessary as any API call will call ```login``` if necessary.  This could be helpful if you're changing ```api_host```s on your instance.
 This method will update your ```access_token``` on a successful login.
-On error, this method will emit an error event. You should ```$sf->catch( sub { say "Error: ".pop});``` errors as the caller.
+On error, this method will emit an [error](#error) event. You should [catch](#catch) errors as the caller.
 
 ### logout
 
@@ -264,11 +269,11 @@ $sf->query('select Id, Name, Phone from Account', sub {
 ```
 
 This method calls the Salesforce [Query method](http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm).  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
-On error, this method will emit an error event. You should ```$sf->catch( sub { say "Error: ".pop});``` errors as the caller.
+On error, this method will emit an [error](#error) event. You should [catch](#catch) errors as the caller.
 
 ## ERROR HANDLING
 
-Any and all errors that occur will emit an ```error``` event. Events that aren't caught will trigger fatal exceptions. Catching errors is simple and allows you to log your error events any way you like:
+Any and all errors that occur will emit an [error](#error) event. Events that aren't [caught](#catch) will trigger fatal exceptions. Catching errors is simple and allows you to log your error events any way you like:
 
 ```perl
 my $sf = WWW::Salesforce->new(...);
