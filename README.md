@@ -3,7 +3,7 @@ A non-blocking [Salesforce API](https://developer.salesforce.com/docs/atlas.en-u
 
 It is EXTREMELY experimental at this point.  Use it at your own risk.  You've been warned.
 
-# Table of Contents
+## Table of Contents
 
 * [Synopsis](#synopsis)
 * [Description](#description)
@@ -24,9 +24,9 @@ It is EXTREMELY experimental at this point.  Use it at your own risk.  You've be
 * [Author](#author)
 * [Bugs](#bugs)
 
-# SYNOPSIS
+## SYNOPSIS
 
-## Blocking way
+### Blocking way
 
 ```perl
 #!/usr/bin/env perl
@@ -43,13 +43,13 @@ my $sf = WWW::Salesforce->new(
 	pass_token => 'mypasswordtoken123214123521345',
 );
 $sf->on(error=> sub{ die pop });
-# calling login() will happen automatically on any API call
+## calling login() will happen automatically on any API call
 my $records_array_ref = $sf->query('Select Id, Name, Phone from Account');
 say Dumper $records_array_ref;
 exit(0);
 ```
 
-## Non-Blocking way
+### Non-Blocking way
 
 ```perl
 #!/usr/bin/env perl
@@ -68,39 +68,46 @@ my $sf = WWW::Salesforce->new(
 );
 $sf->catch(sub {die pop});
 
-# calling login() will happen automatically on any API call
+## calling login() will happen automatically on any API call
 $sf->query('select Name from Account',sub {
 	my ($self, $data) = @_;
 	say "Found ".scalar(@{$data})." results" if $data;
 });
 ```
 
-# DESCRIPTION
+## DESCRIPTION
 
-The [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) class is a subclass of [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent).  It implements all methods of [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) and adds a few more.
-
-[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) allows us to connect to [Salesforce](http://www.salesforce.com/)'s service to get our data using their RESTful API.
+[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) allows us to connect to [Salesforce](http://www.salesforce.com/)'s service to access our data using their [RESTful API](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/).
 
 Creation of a new [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) instance will not actually hit the server.  The first communication with the [Salesforce](http://www.salesforce.com/) API occurs when you specifically call the ```login``` method or when you make another call.
 
-All API calls using this library will first make sure you are properly logged in using [Session ID Authorization](http://www.salesforce.com/us/developer/docs/api_rest/Content/quickstart_oauth.htm) to get your access token.
+All API calls using this library will first make sure you are properly logged in using [Session ID Authorization](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/quickstart_oauth.htm), but more specifically, the [Salesforce Username-Password OAuth Authentication Flow](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_understanding_username_password_oauth_flow.htm) to get your access token.
 It will also make sure that you have grabbed the [latest API version](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_versions.htm) and use that version for all subsequent API method calls.
 
-The [Salesforce Username-Password OAuth Authentication Flow](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm) can help you understand how we're connecting and maintaining our session.
+## EVENTS
 
-# EVENTS
+[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) can the following events via [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) which is ultimately a [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter).
 
-[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all events from [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent).
+### error
 
-# ATTRIBUTES
+```perl
+$sf->on(error => sub {
+	my ( $e, $err ) = @_;
+	...
+});
+```
+
+This is a special event for errors.  It is fatal if unhandled and stops the current request otherwise. See [Mojo::EventEmitter#error](https://metacpan.org/pod/Mojo::EventEmitter#error).
+
+## ATTRIBUTES
 
 [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all attributes from [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) and adds the following new ones.
 
-## api\_host
+### api\_host
 
 ```perl
 my $host = $sf->api_host;
-# Setting attributes returns your object instance; allows method-chaining
+## Setting attributes returns your object instance; allows method-chaining
 $sf = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') );
 ```
 
@@ -108,7 +115,7 @@ This is the base host of the API we're using.  This allows you to use any of you
 
 Note, changing this attribute might invalidate your access token after you've logged in.
 
-## consumer\_key
+### consumer\_key
 
 ```perl
 my $key = $sf->consumer_key;
@@ -119,7 +126,7 @@ The Consumer Key (also referred to as the client\_id in the Saleforce documentat
 
 Note, changing this attribute after the creation of your new instance is kind of pointless since it's only used to generate the access token at the beginning.
 
-## consumer\_secret
+### consumer\_secret
 
 ```perl
 my $secret = $sf->consumer_secret;
@@ -130,7 +137,7 @@ The Consumer Secret (also referred to as the client\_secret in the Saleforce doc
 
 Note, changing this attribute after the creation of your new instance is kind of pointless since it's only used to generate the access token at the beginning.
 
-## pass\_token
+### pass\_token
 
 ```perl
 my $token = $sf->pass_token;
@@ -139,7 +146,7 @@ $sf = $sf->pass_token( 'mypasswordtoken145' ); # allows for method-chaining
 
 The password token is a Salesforce-generated token to go along with your password.  It is appended to the end of your password and used only during login authentication.
 
-## password
+### password
 
 ```perl
 my $password = $sf->password;
@@ -148,7 +155,7 @@ $sf = $sf->password( 'mypassword' ); # allows for method-chaining
 
 The password is the password you set for your user account in Salesforce.  This attribute is only used during login authentication.
 
-## username
+### username
 
 ```perl
 my $username = $sf->username;
@@ -157,17 +164,55 @@ $sf = $sf->username( 'foo@bar.com' ); # allows for method-chaining
 
 The username is the email address you set for your user account in Salesforce.  This attribute is only used during login authentication.
 
-# METHODS
+## DELEGATES
 
-[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) inherits all methods from [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) and adds the following new ones.
+[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) makes the following attributes and methods from [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) available.
 
-## api\_path
+### catch
 
 ```perl
-# blocking
+$sf = $sf->catch(sub {...});
+```
+
+Subscribe to ["error"](#error) event. See [Mojo::EventEmitter#catch](https://metacpan.org/pod/Mojo::EventEmitter#catch).
+
+```perl
+# longer version
+$sf->on(error => sub {...});
+```
+
+### emit
+
+```perl
+$sf = $sf->emit('error');
+$sf = $sf->emit('error', "uh oh!");
+```
+
+Emit an event.
+
+### proxy
+
+See [Mojo::UserAgent::proxy](https://metacpan.org/pod/Mojo::UserAgent#proxy).
+
+### on
+
+```perl
+$sf->on(error => sub {...});
+```
+
+Subscribe to an event. See [Mojo::EventEmitter#on](https://metacpan.org/pod/Mojo::EventEmitter#on).
+
+## METHODS
+
+[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) makes the following methods available.
+
+### api\_path
+
+```perl
+## blocking
 my $path = $sf->api_path();
 
-# non-blocking
+## non-blocking
 $sf->api_path(
 	my ($sf,$path) = @_;
 	say "The api path is $path";
@@ -177,13 +222,13 @@ $sf->api_path(
 This is the path to the API version we're using.  It's always the latest version of the [Salesforce API](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_versions.htm).
 On error, this method will emit an error event. You should ```perl $sf->catch( sub { say "Error: ".pop});``` errors as the caller.
 
-## login
+### login
 
 ```perl
-# blocking
+## blocking
 $sf = $sf->login(); # allows for method-chaining
 
-# non-blocking
+## non-blocking
 $sf->login(
 	my ($sf, $token) = @_;
 	say "Our auth token is: $token";
@@ -195,7 +240,7 @@ Calling this method on your own is not necessary as any API call will call ```lo
 This method will update your ```access_token``` on a successful login.
 On error, this method will emit an error event. You should ```$sf->catch( sub { say "Error: ".pop});``` errors as the caller.
 
-## logout
+### logout
 
 ```perl
 $sf = $sf->logout(); # allows for method-chaining
@@ -204,14 +249,14 @@ $sf = $sf->logout(); # allows for method-chaining
 This method does not actually make any call to [Salesforce](http://www.salesforce.com).
 It only removes knowledge of your access token so that you can login again on your next API call.
 
-## query
+### query
 
 ```perl
-# blocking
+## blocking
 my $results = $sf->query('Select Id, Name, Phone from Account');
 say Dumper $results;
 
-# non-blocking
+## non-blocking
 $sf->query('select Id, Name, Phone from Account', sub {
 	my ($sf, $results) = @_;
 	say Dumper $results;
@@ -221,7 +266,7 @@ $sf->query('select Id, Name, Phone from Account', sub {
 This method calls the Salesforce [Query method](http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm).  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
 On error, this method will emit an error event. You should ```$sf->catch( sub { say "Error: ".pop});``` errors as the caller.
 
-# ERROR HANDLING
+## ERROR HANDLING
 
 Any and all errors that occur will emit an ```error``` event. Events that aren't caught will trigger fatal exceptions. Catching errors is simple and allows you to log your error events any way you like:
 
@@ -239,11 +284,11 @@ $sf->catch(sub {
 my $result_wont_happen = $sf->query('bad query statement to produce error');
 ```
 
-# AUTHOR
+## AUTHOR
 
 Chase Whitener -- cwhitener@gmail.com
 
-# BUGS
+## BUGS
 
 Please report any bugs or feature requests on GitHub [https://github.com/genio/www-salesforce-nb/issues](https://github.com/genio/www-salesforce-nb/issues).
 I appreciate any and all criticism, bug reports, enhancements, or fixes.

@@ -80,6 +80,7 @@ isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' );
 		$sf->$attr($orig);
 		is($sf->$attr, $orig, "attribute: $attr returned to normal");
 	}
+	can_ok($sf, qw(get put patch post delete options proxy ua emit catch on) );
 }
 
 # force the URL to point to our mock-server
@@ -111,7 +112,7 @@ is($sf->login()->_access_token(), '123455663452abacbabababababababanenenenene', 
 	my $path = $sf->api_path();
 	$sf->_api_path('/error/');
 	$sf->query('test');
-	is($error, 'ERROR: 401 Unauthorized: what?!?: foo', 'error handling: got proper error message');
+	is($error, '401 Unauthorized: what?!?: foo', 'error handling: got proper error message');
 	#reset back to normal
 	$sf->api_path($path);
 }

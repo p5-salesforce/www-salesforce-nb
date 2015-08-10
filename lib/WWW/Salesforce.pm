@@ -1,24 +1,33 @@
 package WWW::Salesforce;
 
-use Mojo::Base 'Mojo::UserAgent';
+use Moo;
 use Mojo::Date;
 use Mojo::IOLoop;
 use Mojo::URL;
 use Mojo::UserAgent;
+use Scalar::Util qw(blessed);
+use strictures 2;
+use namespace::clean;
 
-our $VERSION = '0.003';
+our $VERSION = '0.004';
 
-has '_api_path';
-has '_access_token';
-has '_access_time';
+has '_api_path' => (is=>'rw',required=>1,default=>'');
+has '_access_token' => (is=>'rw',required=>1,default=>'');
+has '_access_time' => (is=>'rw',required=>1,default=>'0');
+has '_ua' => (
+	is => 'ro',
+	required => 1,
+	default => sub {Mojo::UserAgent->new(inactivity_timeout=>50);},
+	handles => [qw(emit catch on get post put patch delete options proxy)],
+);
 
 # salesforce login attributes
-has api_host => sub{ return Mojo::URL->new('https://login.salesforce.com/') };
-has consumer_key => '';
-has consumer_secret => '';
-has username => '';
-has password => '';
-has pass_token => '';
+has api_host => (is => 'rw', required=>1, default => sub {Mojo::URL->new('https://login.salesforce.com/') } );
+has consumer_key => (is =>'rw',required=>1,default=>'');
+has consumer_secret => (is =>'rw',required=>1,default=>'');
+has username => (is =>'rw',required=>1,default=>'');
+has password => (is =>'rw',required=>1,default=>'');
+has pass_token => (is =>'rw',required=>1,default=>'');
 
 # If we already know the latest API path, then use it, otherwise ask Salesforce
 # for a list and parse that list to obtain the latest.
@@ -185,7 +194,7 @@ sub _error {
 		$message .= ($err->{message} || '').': ';
 		$message .= $err->{errorCode} ||= '';
 	}
-	$self->emit(error=>"ERROR: $message");
+	$self->emit(error=>$message);
 	return undef;
 }
 
