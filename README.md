@@ -15,6 +15,11 @@ It is EXTREMELY experimental at this point.  Use it at your own risk.  You've be
 	* [pass\_token](#pass_token)
 	* [password](#password)
 	* [username](#username)
+* [Delegates](#delegates)
+	* [catch](#catch)
+	* [emit](#emit)
+	* [proxy](#proxy)
+	* [on](#on)
 * [Methods](#methods)
 	* [api\_path](#api_path)
 	* [login](#login)
@@ -107,8 +112,7 @@ This is a special event for errors.  It is fatal if unhandled and stops the curr
 
 ```perl
 my $host = $sf->api_host;
-## Setting attributes returns your object instance; allows method-chaining
-$sf = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') );
+$host = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') );
 ```
 
 This is the base host of the API we're using.  This allows you to use any of your sandbox or live data areas easily.
@@ -119,7 +123,7 @@ Note, changing this attribute might invalidate your access token after you've lo
 
 ```perl
 my $key = $sf->consumer_key;
-$sf = $sf->consumer_key( 'alksdlksdf' ); # allows for method-chaining
+$key = $sf->consumer_key( 'alksdlksdf' );
 ```
 
 The Consumer Key (also referred to as the client\_id in the Saleforce documentation) is part of your [Connected App](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm).  It is a required field to be able to login.
@@ -130,7 +134,7 @@ Note, this attribute is only used to generate the access token during [login](#l
 
 ```perl
 my $secret = $sf->consumer_secret;
-$sf = $sf->consumer_secret( 'asdfas123513245' ); # allows for method-chaining
+$secret = $sf->consumer_secret( 'asdfas123513245' );
 ```
 
 The Consumer Secret (also referred to as the client\_secret in the Saleforce documentation) is part of your [Connected App](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm).  It is a required field to be able to login.
@@ -141,7 +145,7 @@ Note, this attribute is only used to generate the access token during [login](#l
 
 ```perl
 my $token = $sf->pass_token;
-$sf = $sf->pass_token( 'mypasswordtoken145' ); # allows for method-chaining
+$token = $sf->pass_token( 'mypasswordtoken145' );
 ```
 
 The password token is a Salesforce-generated token to go along with your password.  It is appended to the end of your password and used only during login authentication.
@@ -152,7 +156,7 @@ Note, this attribute is only used to generate the access token during [login](#l
 
 ```perl
 my $password = $sf->password;
-$sf = $sf->password( 'mypassword' ); # allows for method-chaining
+$password = $sf->password( 'mypassword' );
 ```
 
 The password is the password you set for your user account in Salesforce.
@@ -163,7 +167,7 @@ Note, this attribute is only used to generate the access token during [login](#l
 
 ```perl
 my $username = $sf->username;
-$sf = $sf->username( 'foo@bar.com' ); # allows for method-chaining
+$username = $sf->username( 'foo@bar.com' );
 ```
 
 The username is the email address you set for your user account in Salesforce.
