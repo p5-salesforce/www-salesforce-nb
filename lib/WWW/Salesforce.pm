@@ -5,7 +5,6 @@ use Mojo::Date;
 use Mojo::IOLoop;
 use Mojo::URL;
 use Mojo::UserAgent;
-use Scalar::Util qw(blessed);
 use strictures 2;
 use namespace::clean;
 
