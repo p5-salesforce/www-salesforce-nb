@@ -388,7 +388,7 @@ Note, this attribute is only used to generate the access token during C<login>. 
 
 =head1 METHODS
 
-L<WWW::Salesforce> inherits all methods from L<Mojo::UserAgent> and adds the following new ones.
+L<WWW::Salesforce> makes the following methods available.
 
 =head2 api_path
 
