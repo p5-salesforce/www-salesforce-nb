@@ -70,25 +70,14 @@ my $sf = WWW::Salesforce->new();
 isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' );
 
 # Test attributes
-{
-	my @attributes = ('_api_path', '_access_token', 'api_host', 'consumer_key', 'consumer_secret', 'username', 'password', 'pass_token');
-	can_ok($sf, @attributes);
-	for my $attr (@attributes) {
-		my $orig = $sf->$attr;
-		$sf->$attr('test');
-		is($sf->$attr, 'test', "attribute: $attr set properly set to 'test'");
-		$sf->$attr($orig);
-		is($sf->$attr, $orig, "attribute: $attr returned to normal");
-	}
-	can_ok($sf, qw(get put patch post delete options proxy ua emit catch on) );
-}
+can_ok($sf, qw(_api_path _access_token api_host consumer_key consumer_secret username password pass_token ua emit catch on) );
 
 # force the URL to point to our mock-server
 $sf->api_host(Mojo::URL->new('/'));
 
 # Test UA
-is $sf->get('/')->res->code, 200, 'UA: right status';
-is $sf->get('/')->res->body, 'works!', 'UA: right body content';
+is $sf->ua->get('/')->res->code, 200, 'UA: right status';
+is $sf->ua->get('/')->res->body, 'works!', 'UA: right body content';
 
 # Test API Path gathering
 is($sf->api_path(),'/services/data/v33.0/','api_path: got the correct latest path');

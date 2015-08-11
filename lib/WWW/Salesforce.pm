@@ -11,16 +11,16 @@ use namespace::clean;
 
 our $VERSION = '0.004';
 
-has '_api_path' => (is=>'rw',required=>1,default=>'');
-has '_access_token' => (is=>'rw',required=>1,default=>'');
-has '_access_time' => (is=>'rw',required=>1,default=>'0');
+has '_api_path' => (is=>'rw',default=>'');
+has '_access_token' => (is=>'rw',default=>'');
+has '_access_time' => (is=>'rw',default=>'0');
 # salesforce login attributes
 has api_host => (is => 'rw', required=>1, default => sub {Mojo::URL->new('https://login.salesforce.com/') } );
-has consumer_key => (is =>'rw',required=>1,default=>'');
-has consumer_secret => (is =>'rw',required=>1,default=>'');
-has username => (is =>'rw',required=>1,default=>'');
-has password => (is =>'rw',required=>1,default=>'');
-has pass_token => (is =>'rw',required=>1,default=>'');
+has consumer_key => (is =>'rw',default=>'');
+has consumer_secret => (is =>'rw',default=>'');
+has username => (is =>'rw',default=>'');
+has password => (is =>'rw',default=>'');
+has pass_token => (is =>'rw',default=>'');
 has 'ua' => (
 	is => 'ro',
 	required => 1,
@@ -302,72 +302,89 @@ Non-blocking:
 
 =head1 DESCRIPTION
 
-The L<WWW::Salesforce> class is a subclass of L<Mojo::UserAgent>.  It implements all methods of L<Mojo::UserAgent> and adds a few more.
-
-L<WWW::Salesforce> allows us to connect to L<Salesforce|http://www.salesforce.com/>'s service to get our data using their RESTful API.
+L<WWW::Salesforce> allows us to connect to L<Salesforce|http://www.salesforce.com/>'s service to access our data using their L<RESTful API|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/>.
 
 Creation of a new L<WWW::Salesforce> instance will not actually hit the server.  The first communication with the L<Salesforce|http://www.salesforce.com/> API occurs when you specifically call the C<login> method or when you make another call.
 
-All API calls using this library will first make sure you are properly logged in using L<Session ID Authorization|http://www.salesforce.com/us/developer/docs/api_rest/Content/quickstart_oauth.htm> to get your access token.
+All API calls using this library will first make sure you are properly logged in using L<Session ID Authorization|http://www.salesforce.com/us/developer/docs/api_rest/Content/quickstart_oauth.htm>, but more specifically, the L<Salesforce Username-Password OAuth Authentication Flow|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm> to get your access token.
 It will also make sure that you have grabbed the L<latest API version|http://www.salesforce.com/us/developer/docs/api_rest/Content/dome_versions.htm> and use that version for all subsequent API method calls.
-
-The L<Salesforce Username-Password OAuth Authentication Flow|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm> can help you understand how we're connected and maintaining our session.
 
 =head1 EVENTS
 
-L<WWW::Salesforce> inherits all events from L<Mojo::UserAgent>.
+L<WWW::Salesforce> can emit the following events via L<Mojo::UserAgent> which is ultimately a L<Mojo::EventEmitter>.
+
+=head2 error
+
+	$sf->on(error => sub {
+		my ($e, $err) = @_;
+		...
+	});
+
+This is a special event for errors.  It is fatal if unhandled and stops the current request otherwise. See L<Mojo::EventEmitter#error>.
 
 =head1 ATTRIBUTES
 
-L<WWW::Salesforce> inherits all attributes from L<Mojo::UserAgent> and adds the following new ones.
+L<WWW::Salesforce> makes the following attributes available.
 
 =head2 api_host
 
 	my $host = $sf->api_host;
-	$sf = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') ); # allows for method-chaining
+	$host = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') );
 
 This is the base host of the API we're using.  This allows you to use any of your sandbox or live data areas easily.
 
-Note, changing this attribute might invalidate your access token after you've logged in.
+Note, changing this attribute might invalidate your access token after you've logged in. You may want to C<logout> before changing this setting.
 
 =head2 consumer_key
 
 	my $key = $sf->consumer_key;
-	$sf = $sf->consumer_key( 'alksdlkj3hh.asdf' );  # allows for method-chaining
+	$key = $sf->consumer_key( 'alksdlkj3hh.asdf' );
 
 The Consumer Key (also referred to as the client_id in the Saleforce documentation) is part of your L<Connected App|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm>.  It is a required field to be able to login.
 
-Note, changing this attribute after the creation of your new instance is kind of pointless since it's only used to generate the access token at the beginning.
+Note, this attribute is only used to generate the access token during C<login>. You may want to C<logout> before changing this setting.
 
 =head2 consumer_secret
 
 	my $secret = $sf->consumer_secret;
-	$sf = $sf->consumer_secret( 'asdfasdjkfh234123513245' );  # allows for method-chaining
+	$secret = $sf->consumer_secret( 'asdfasdjkfh234123513245' );
 
 The Consumer Secret (also referred to as the client_secret in the Saleforce documentation) is part of your L<Connected App|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm>.  It is a required field to be able to login.
 
-Note, changing this attribute after the creation of your new instance is kind of pointless since it's only used to generate the access token at the beginning.
+Note, this attribute is only used to generate the access token during C<login>. You may want to C<logout> before changing this setting.
 
 =head2 pass_token
 
 	my $token = $sf->pass_token;
-	$sf = $sf->pass_token( 'mypasswordtoken123214123521345' );  # allows for method-chaining
+	$token = $sf->pass_token( 'mypasswordtoken123214123521345' );
 
-The password token is a Salesforce-generated token to go along with your password.  It is appended to the end of your password and used only during login authentication.
+The password token is a Salesforce-generated token to go along with your password.  It is appended to the end of your password and used only during C<login> authentication.
+
+Note, this attribute is only used to generate the access token during C<login>. You may want to C<logout> before changing this setting.
 
 =head2 password
 
 	my $password = $sf->password;
-	$sf = $sf->password( 'mypassword' );  # allows for method-chaining
+	$password = $sf->password( 'mypassword' );
 
-The password is the password you set for your user account in Salesforce.  This attribute is only used during login authentication.
+The password is the password you set for your user account in Salesforce.
+
+Note, this attribute is only used to generate the access token during C<login>. You may want to C<logout> before changing this setting.
+
+=head2 ua
+
+	my $ua = $sf->ua;
+
+The L<Mojo::UserAgent> is the user agent we use to communicate with the Salesforce services.  For C<proxy> and other needs, see the L<Mojo::UserAgent> documentation.
 
 =head2 username
 
 	my $username = $sf->username;
-	$sf = $sf->username( 'foo@bar.com' ); # allows for method-chaining
+	$username = $sf->username( 'foo@bar.com' );
 
-The username is the email address you set for your user account in Salesforce.  This attribute is only used during login authentication.
+The username is the email address you set for your user account in Salesforce.
+
+Note, this attribute is only used to generate the access token during C<login>. You may want to C<logout> before changing this setting.
 
 =head1 METHODS
 
@@ -385,7 +402,23 @@ L<WWW::Salesforce> inherits all methods from L<Mojo::UserAgent> and adds the fol
 	);
 
 This is the path to the API version we're using.  We're always going to be using the latest API version available.
-On error, this method will emit an C<error> event. You should catch errors as the caller.
+On error, this method will emit an C<error> event. You should C<catch> errors as the caller.
+
+=head2 catch
+
+	$sf = $sf->catch(sub {...});
+
+Subscribe to an C<error> event.  See L<Mojo::EventEmitter#catch>.
+
+	# longer version
+	$sf->on(error => sub {...});
+
+=head2 emit
+
+	$sf = $sf->emit('error');
+	$sf = $sf->emit('error', "uh oh!");
+
+Emit an event.
 
 =head2 login
 
@@ -399,7 +432,7 @@ On error, this method will emit an C<error> event. You should catch errors as th
 	);
 
 This method will and go through the L<Salesforce Username-Password OAuth Authentication Flow|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm>
-process if you need to regenerate your authentication token.
+process if it needs to.
 Calling this method on your own is not necessary as any API call will call C<login> if necessary.  This could be helpful if you're changing C<api_host>s on your instance.
 This method will update your C<access_token> on a successful login.
 On error, this method will emit an C<error> event. You should catch errors as the caller.
@@ -410,6 +443,12 @@ On error, this method will emit an C<error> event. You should catch errors as th
 
 This method does not actually make any call to L<Salesforce|http://www.salesforce.com>.
 It only removes knowledge of your access token so that you can login again on your next API call.
+
+=head2 on
+
+	$sf->on(error => sub {...});
+
+Subscribe to an C<event>. See L<Mojo::EventEmitter#on>.
 
 =head2 query
 

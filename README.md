@@ -16,15 +16,13 @@ It is EXTREMELY experimental at this point.  Use it at your own risk.  You've be
 	* [password](#password)
 	* [ua](#ua)
 	* [username](#username)
-* [Delegates](#delegates)
-	* [catch](#catch)
-	* [emit](#emit)
-	* [proxy](#proxy)
-	* [on](#on)
 * [Methods](#methods)
 	* [api\_path](#api_path)
+	* [catch](#catch)
+	* [emit](#emit)
 	* [login](#login)
 	* [logout](#logout)
+	* [on](#on)
 	* [query](#query)
 * [Error Handling](#error-handling)
 * [Author](#author)
@@ -92,7 +90,7 @@ It will also make sure that you have grabbed the [latest API version](https://de
 
 ## EVENTS
 
-[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) can the following events via [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) which is ultimately a [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter).
+[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) can emit the following events via [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) which is ultimately a [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter).
 
 ### error
 
@@ -149,7 +147,7 @@ my $token = $sf->pass_token;
 $token = $sf->pass_token( 'mypasswordtoken145' );
 ```
 
-The password token is a Salesforce-generated token to go along with your password.  It is appended to the end of your password and used only during login authentication.
+The password token is a Salesforce-generated token to go along with your password.  It is appended to the end of your password and used only during [login](#login) authentication.
 
 Note, this attribute is only used to generate the access token during [login](#login).  You may want to [logout](#logout) before changing this setting.
 
@@ -182,9 +180,25 @@ $username = $sf->username( 'foo@bar.com' );
 The username is the email address you set for your user account in Salesforce.
 Note, this attribute is only used to generate the access token during [login](#login).  You may want to [logout](#logout) before changing this setting.
 
-## DELEGATES
+## METHODS
 
-[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) makes the following attributes and methods from [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) available.
+[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) makes the following methods available.
+
+### api\_path
+
+```perl
+## blocking
+my $path = $sf->api_path();
+
+## non-blocking
+$sf->api_path(
+	my ($sf,$path) = @_;
+	say "The api path is $path";
+);
+```
+
+This is the path to the API version we're using.  It's always the latest version of the [Salesforce API](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_versions.htm).
+On error, this method will emit an [error](#error) event. You should [catch](#catch) errors as the caller.
 
 ### catch
 
@@ -207,38 +221,6 @@ $sf = $sf->emit('error', "uh oh!");
 ```
 
 Emit an event.
-
-### proxy
-
-See [Mojo::UserAgent::proxy](https://metacpan.org/pod/Mojo::UserAgent#proxy).
-
-### on
-
-```perl
-$sf->on(error => sub {...});
-```
-
-Subscribe to an event. See [Mojo::EventEmitter#on](https://metacpan.org/pod/Mojo::EventEmitter#on).
-
-## METHODS
-
-[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) makes the following methods available.
-
-### api\_path
-
-```perl
-## blocking
-my $path = $sf->api_path();
-
-## non-blocking
-$sf->api_path(
-	my ($sf,$path) = @_;
-	say "The api path is $path";
-);
-```
-
-This is the path to the API version we're using.  It's always the latest version of the [Salesforce API](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_versions.htm).
-On error, this method will emit an [error](#error) event. You should [catch](#catch) errors as the caller.
 
 ### login
 
@@ -266,6 +248,14 @@ $sf = $sf->logout(); # allows for method-chaining
 
 This method does not actually make any call to [Salesforce](http://www.salesforce.com).
 It only removes knowledge of your access token so that you can login again on your next API call.
+
+### on
+
+```perl
+$sf->on(error => sub {...});
+```
+
+Subscribe to an event. See [Mojo::EventEmitter#on](https://metacpan.org/pod/Mojo::EventEmitter#on).
 
 ### query
 
