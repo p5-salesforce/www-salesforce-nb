@@ -14,13 +14,6 @@ our $VERSION = '0.004';
 has '_api_path' => (is=>'rw',required=>1,default=>'');
 has '_access_token' => (is=>'rw',required=>1,default=>'');
 has '_access_time' => (is=>'rw',required=>1,default=>'0');
-has '_ua' => (
-	is => 'ro',
-	required => 1,
-	default => sub {Mojo::UserAgent->new(inactivity_timeout=>50);},
-	handles => [qw(emit catch on get post put patch delete options proxy)],
-);
-
 # salesforce login attributes
 has api_host => (is => 'rw', required=>1, default => sub {Mojo::URL->new('https://login.salesforce.com/') } );
 has consumer_key => (is =>'rw',required=>1,default=>'');
@@ -28,6 +21,13 @@ has consumer_secret => (is =>'rw',required=>1,default=>'');
 has username => (is =>'rw',required=>1,default=>'');
 has password => (is =>'rw',required=>1,default=>'');
 has pass_token => (is =>'rw',required=>1,default=>'');
+has 'ua' => (
+	is => 'ro',
+	required => 1,
+	default => sub {Mojo::UserAgent->new(inactivity_timeout=>50);},
+	handles => [qw(emit catch on)],
+);
+
 
 # If we already know the latest API path, then use it, otherwise ask Salesforce
 # for a list and parse that list to obtain the latest.
@@ -38,13 +38,13 @@ sub api_path {
 		return $cb? $self->$cb($path): $path;
 	}
 	unless ($cb) {
-		my $tx = $self->get( Mojo::URL->new($self->api_host)->path("/services/data"), $self->_headers() );
+		my $tx = $self->ua->get( Mojo::URL->new($self->api_host)->path("/services/data"), $self->_headers() );
 		return $self->_error($tx->error, $tx->res->json) unless $tx->success;
 		return $self->_api_latest($tx->success->json);
 	}
 	return Mojo::IOLoop->delay(
 		sub {
-			$self->get( Mojo::URL->new($self->api_host)->path("/services/data"), $self->_headers(), shift->begin(0) );
+			$self->ua->get( Mojo::URL->new($self->api_host)->path("/services/data"), $self->_headers(), shift->begin(0) );
 		},
 		sub {
 			my ($delay, $ua, $tx) = @_;
@@ -78,7 +78,7 @@ sub login {
 
 	# blocking request
 	unless ($cb) {
-		my $tx = $self->post($url, $self->_headers(), form => $form);
+		my $tx = $self->ua->post($url, $self->_headers(), form => $form);
 		return $self->_error($tx->error, $tx->res->json) unless $tx->success;
 		my $data = $tx->res->json;
 		$self->api_host($data->{instance_url});
@@ -90,7 +90,7 @@ sub login {
 
 	# non-blocking request
 	return Mojo::IOLoop->delay(
-		sub { $self->post($url, $self->_headers(), form => $form, shift->begin(0)); },
+		sub { $self->ua->post($url, $self->_headers(), form => $form, shift->begin(0)); },
 		sub {
 			my ($delay, $ua, $tx) = @_;
 			return $self->_error($tx->error, $tx->res->json) unless $tx->success;
@@ -129,7 +129,7 @@ sub query {
 		$self->login(); # handles renewing the auth token if necessary
 		my $results = [];
 		my $url = Mojo::URL->new($self->api_host)->path($self->api_path)->path('query/');
-		my $tx = $self->get( $url, $self->_headers(), form => { q => $query, } );
+		my $tx = $self->ua->get( $url, $self->_headers(), form => { q => $query, } );
 		while(1) {
 			return $self->_error($tx->error, $tx->res->json) unless $tx->success;
 			my $json = $tx->res->json;
@@ -140,7 +140,7 @@ sub query {
 			last unless $json->{nextRecordsUrl};
 			$self->login();
 			$url = Mojo::URL->new($self->api_host)->path($json->{nextRecordsUrl});
-			$tx = $self->get( $url, $self->_headers() );
+			$tx = $self->ua->get( $url, $self->_headers() );
 		}
 		return $results;
 	}
@@ -157,7 +157,7 @@ sub query {
 			my $url = Mojo::URL->new($self->api_host)->path($self->_api_path)->path('query/');
 			$delay->data(self=>$self,cb=>$cb);
 			$delay->steps(\&_query_results_nb);
-			$self->get($url, $self->_headers(), form => {q=>$query,}, $delay->begin(0) );
+			$self->ua->get($url, $self->_headers(), form => {q=>$query,}, $delay->begin(0) );
 		}
 	)->catch(sub {
 		my ( $delay, $err ) = @_;
@@ -228,7 +228,7 @@ sub _login_required {
 sub _query_results_nb {
 	my ($delay, $ua, $tx ) = @_;
 	my $self = $delay->data('self') || die "Can't find SF object";
-	my $cb = $delay->data('cb') || die "Can't find CallBack";
+	my $cb = $delay->data('cb') || ($self->emit(error=>"Can't find callback") && return undef);
 	return $self->_error($tx->error, $tx->res->json) unless $tx->success;
 	my $data = $tx->res->json;
 	my $records = $delay->data('records') || [];
@@ -238,7 +238,7 @@ sub _query_results_nb {
 	return $self->$cb($records) unless $data->{nextRecordsUrl};
 	my $url = Mojo::URL->new($self->api_host)->path($data->{nextRecordsUrl});
 	$delay->steps(\&_query_results_nb);
-	$self->get($url, $self->_headers(), $delay->begin(0) );
+	$self->ua->get($url, $self->_headers(), $delay->begin(0) );
 }
 
 1;

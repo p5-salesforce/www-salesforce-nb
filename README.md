@@ -14,6 +14,7 @@ It is EXTREMELY experimental at this point.  Use it at your own risk.  You've be
 	* [consumer\_secret](#consumer_secret)
 	* [pass\_token](#pass_token)
 	* [password](#password)
+	* [ua](#ua)
 	* [username](#username)
 * [Delegates](#delegates)
 	* [catch](#catch)
@@ -162,6 +163,14 @@ $password = $sf->password( 'mypassword' );
 The password is the password you set for your user account in Salesforce.
 
 Note, this attribute is only used to generate the access token during [login](#login).  You may want to [logout](#logout) before changing this setting.
+
+### ua
+
+```perl
+my $ua = $sf->ua;
+```
+
+The [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) is the user agent we use to communicate with the Salesforce services.  For ```proxy``` and other needs, see the [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) documentation.
 
 ### username
 
