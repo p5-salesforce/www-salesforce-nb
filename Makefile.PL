@@ -23,6 +23,7 @@ WriteMakefile(
 		'Test::More' => 0,
 		'Test::Pod' => 0,
 		'Test::Pod::Coverage' => 0,
+		'Try::Tiny' => 0,
 	},
 	PREREQ_PM => {
 		'IO::Socket::IP' => 0.20,
