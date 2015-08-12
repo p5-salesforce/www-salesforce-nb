@@ -4,6 +4,7 @@ Revision history for Perl extension WWW::Salesforce.
 	- die on error in blocking code
 	- change non-blocking to return $self, $err, $data on error
 	- stop emitting error events
+	- cleaned up some
 
 0.004
 	- Stopped subclassing as it was not necessary

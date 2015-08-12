@@ -1,12 +1,10 @@
 package WWW::Salesforce;
 
 use Moo;
-use Mojo::IOLoop::Delay;
 use Mojo::URL;
 use Mojo::UserAgent;
 use strictures 2;
 use namespace::clean;
-use Data::Dumper;
 
 our $VERSION = '0.005';
 
@@ -20,12 +18,7 @@ has consumer_secret => (is =>'rw',default=>'');
 has login_url => (is => 'rw', required=>1, default => sub {Mojo::URL->new('https://login.salesforce.com/') } );
 has password => (is =>'rw',default=>'');
 has pass_token => (is =>'rw',default=>'');
-has ua => (
-	is => 'ro',
-	required => 1,
-	default => sub {Mojo::UserAgent->new(inactivity_timeout=>50);},
-	handles => [qw(emit catch on)],
-);
+has ua => (is => 'ro',required => 1,default => sub {Mojo::UserAgent->new(inactivity_timeout=>50);},);
 has username => (is =>'rw',default=>'');
 has version => (
 	is=>'rw',
@@ -75,6 +68,7 @@ sub login {
 	return $self;
 }
 
+# log out of salesforce and invalidate the token we're using
 sub logout {
 	my ($self,$cb) = @_;
 	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
@@ -107,6 +101,7 @@ sub logout {
 	return $self;
 }
 
+# run a query
 sub query {
 	my ($self, $query, $cb) = @_;
 	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
@@ -157,7 +152,7 @@ sub query {
 	return $self;
 }
 
-# emit an error
+# create an error string
 sub _error {
 	my ( $self, $error, $data ) = @_;
 	my $message = '';
