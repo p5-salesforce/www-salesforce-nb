@@ -1,72 +1,49 @@
 package WWW::Salesforce;
 
 use Moo;
-use Mojo::Date;
-use Mojo::IOLoop;
+use Mojo::IOLoop::Delay;
 use Mojo::URL;
 use Mojo::UserAgent;
 use strictures 2;
 use namespace::clean;
+use Data::Dumper;
 
-our $VERSION = '0.004';
+our $VERSION = '0.005';
 
-has '_api_path' => (is=>'rw',default=>'');
 has '_access_token' => (is=>'rw',default=>'');
 has '_access_time' => (is=>'rw',default=>'0');
+has '_instance_url' => (is => 'rw', default => '' );
+
 # salesforce login attributes
-has api_host => (is => 'rw', required=>1, default => sub {Mojo::URL->new('https://login.salesforce.com/') } );
 has consumer_key => (is =>'rw',default=>'');
 has consumer_secret => (is =>'rw',default=>'');
-has username => (is =>'rw',default=>'');
+has login_url => (is => 'rw', required=>1, default => sub {Mojo::URL->new('https://login.salesforce.com/') } );
 has password => (is =>'rw',default=>'');
 has pass_token => (is =>'rw',default=>'');
-has 'ua' => (
+has ua => (
 	is => 'ro',
 	required => 1,
 	default => sub {Mojo::UserAgent->new(inactivity_timeout=>50);},
 	handles => [qw(emit catch on)],
 );
-
-
-# If we already know the latest API path, then use it, otherwise ask Salesforce
-# for a list and parse that list to obtain the latest.
-sub api_path {
-	my ($self, $cb) = @_;
-	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
-	if ( my $path = $self->_api_path ) {
-		return $cb? $self->$cb($path): $path;
-	}
-	unless ($cb) {
-		my $tx = $self->ua->get( Mojo::URL->new($self->api_host)->path("/services/data"), $self->_headers() );
-		return $self->_error($tx->error, $tx->res->json) unless $tx->success;
-		return $self->_api_latest($tx->success->json);
-	}
-	return Mojo::IOLoop->delay(
-		sub {
-			$self->ua->get( Mojo::URL->new($self->api_host)->path("/services/data"), $self->_headers(), shift->begin(0) );
-		},
-		sub {
-			my ($delay, $ua, $tx) = @_;
-			return $self->_error($tx->error, $tx->res->json) unless $tx->success;
-			my $path = $self->_api_latest($tx->res->json);
-			$self->_api_path($path) if $path;
-			return $self->$cb($path);
-		}
-	)->catch(sub {
-		my ( $delay, $err ) = @_;
-		$self->emit(error=>$err);
-	})->wait();
-}
+has username => (is =>'rw',default=>'');
+has version => (
+	is=>'rw',
+	isa =>sub{die "Must be a floating number without the 'v'" unless $_[0] =~ /^[0-9]+\.[0-9]+$/},
+	required => 1,
+	default => '34.0',
+);
 
 # attempt a login to Salesforce to obtain a token
 sub login {
 	my ($self, $cb) = @_;
 	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
 	unless ( $self->_login_required ) {
-		return $cb? $self->$cb($self->_access_token): $self;
+		$self->$cb(undef, $self->_access_token) if $cb;
+		return $self;
 	}
 
-	my $url = Mojo::URL->new($self->api_host)->path("/services/oauth2/token");
+	my $url = Mojo::URL->new($self->login_url)->path("/services/oauth2/token");
 	my $form = {
 		grant_type => 'password',
 		client_id => $self->consumer_key,
@@ -74,127 +51,132 @@ sub login {
 		username => $self->username,
 		password => $self->password . $self->pass_token,
 	};
-
 	# blocking request
 	unless ($cb) {
 		my $tx = $self->ua->post($url, $self->_headers(), form => $form);
-		return $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
 		my $data = $tx->res->json;
-		$self->api_host($data->{instance_url});
+		$self->_instance_url($data->{instance_url});
 		$self->_access_token($data->{access_token});
 		$self->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
-		$self->api_path(); # get the latest API path available to us
 		return $self;
 	}
 
 	# non-blocking request
-	return Mojo::IOLoop->delay(
-		sub { $self->ua->post($url, $self->_headers(), form => $form, shift->begin(0)); },
-		sub {
-			my ($delay, $ua, $tx) = @_;
-			return $self->_error($tx->error, $tx->res->json) unless $tx->success;
-			my $data = $tx->res->json;
-			$self->api_host(Mojo::URL->new($data->{instance_url}));
-			$self->_access_token($data->{access_token});
-			$self->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
-			$self->api_path( $delay->begin() );
-		},
-		sub {
-			my ( $delay, $path ) = @_;
-			return $self->$cb(undef) unless $path;
-			return $self->$cb($self->_access_token);
-		}
-	)->catch(sub {
-		my ( $delay, $err ) = @_;
-		$self->emit(error=>$err);
-	})->wait();
+	$self->ua->post($url, $self->_headers(), form => $form, sub {
+		my ($ua, $tx) = @_;
+		return $self->$cb($self->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+		my $data = $tx->res->json;
+		$self->_instance_url(Mojo::URL->new($data->{instance_url}));
+		$self->_access_token($data->{access_token});
+		$self->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
+		return $self->$cb(undef, $self->_access_token);
+	});
+	return $self;
 }
 
 sub logout {
-	my $self = shift;
-	$self->_api_path(undef);
-	$self->_access_token(undef);
-	$self->_access_time(0);
+	my ($self,$cb) = @_;
+	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
+	if ( $self->_login_required ) {
+		# we don't need to logout
+		$self->$cb(undef,1) if $cb;
+		return $self;
+	}
+	my $url = Mojo::URL->new($self->_instance_url)->path("/services/oauth2/revoke");
+	#blocking request
+	unless ( $cb ) {
+		my $tx = $self->ua->post($url, $self->_headers(), form =>{token=>$self->_access_token});
+		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		$self->_instance_url(undef);
+		$self->_path(undef);
+		$self->_access_token(undef);
+		$self->_access_time(0);
+		return $self;
+	}
+	# non-blocking request
+	$self->ua->post($url, $self->_headers(), form =>{token=>$self->_access_token}, sub {
+		my ($ua, $tx) = @_;
+		return $self->$cb($self->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+		$self->_instance_url(undef);
+		$self->_path(undef);
+		$self->_access_token(undef);
+		$self->_access_time(0);
+		return $self->$cb(undef, 1);
+	});
 	return $self;
 }
 
 sub query {
 	my ($self, $query, $cb) = @_;
 	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
+	unless ($query) {
+		$self->$cb('A query is required',[]) if $cb;
+		return $cb? $self: [];
+	}
 
 	# blocking request
 	unless ( $cb ) {
-		return [] unless $query;
 		$self->login(); # handles renewing the auth token if necessary
 		my $results = [];
-		my $url = Mojo::URL->new($self->api_host)->path($self->api_path)->path('query/');
+		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path('query/');
 		my $tx = $self->ua->get( $url, $self->_headers(), form => { q => $query, } );
 		while(1) {
-			return $self->_error($tx->error, $tx->res->json) unless $tx->success;
+			die $self->_error($tx->error, $tx->res->json) unless $tx->success;
 			my $json = $tx->res->json;
 			last unless $json && $json->{records};
 			push @{$results}, @{$json->{records}};
 
 			last if $json->{done};
 			last unless $json->{nextRecordsUrl};
-			$self->login();
-			$url = Mojo::URL->new($self->api_host)->path($json->{nextRecordsUrl});
+			$url = Mojo::URL->new($self->_instance_url)->path($json->{nextRecordsUrl});
 			$tx = $self->ua->get( $url, $self->_headers() );
 		}
 		return $results;
 	}
-	# non-blocking request
-	return $self->$cb([]) unless $query;
-	return Mojo::IOLoop->delay(
-		sub {
-			my $delay = shift;
-			$self->login($delay->begin(0));
-		},
-		sub {
-			my ( $delay, $sf, $token ) = @_;
-			return $self->$cb([]) unless $token;
-			my $url = Mojo::URL->new($self->api_host)->path($self->_api_path)->path('query/');
-			$delay->data(self=>$self,cb=>$cb);
-			$delay->steps(\&_query_results_nb);
-			$self->ua->get($url, $self->_headers(), form => {q=>$query,}, $delay->begin(0) );
-		}
-	)->catch(sub {
-		my ( $delay, $err ) = @_;
-		$self->emit(error=>$err);
-	})->wait();
-}
 
-# parse through the API path results to select the latest available API version.
-sub _api_latest {
-	my ($self,$data) = @_;
-	return undef unless $data && ref($data) && ref($data) eq 'ARRAY';
-	my $highest = 0;
-	my $final_path;
-	for my $row ( @{$data} ) {
-		my $num = int($row->{version} // 0);
-		my $path = $row->{url} // '';
-		next unless $path && $num > $highest;
-		$highest = $num;
-		$path .= '/' unless substr($path,-1,1) eq '/';
-		$final_path = $path;
-	}
-	return $final_path;
+	# non-blocking request
+	$self->login(sub {
+		my ( $sf, $err, $token ) = @_;
+		return $sf->$cb($err,[]) if $err;
+		return $sf->$cb('No login token',[]) unless $token;
+		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path('query/');
+		my $results = [];
+		my $results_nb;
+		$results_nb = sub {
+			my ($ua,$tx) = @_;
+			return $sf->$cb($sf->_error($tx->error, $tx->res->json),$results) unless $tx->success;
+			my $data = $tx->res->json;
+			push @{$results}, @{$data->{records}};
+			return $sf->$cb(undef,$results) if $data->{done};
+			return $sf->$cb(undef,$results) unless $data->{nextRecordsUrl};
+			$sf->ua->get(Mojo::URL->new($sf->_instance_url)->path($data->{nextRecordsUrl}), $sf->_headers(), $results_nb);
+		};
+		$sf->ua->get($url, $sf->_headers(), form => { q => $query, }, $results_nb);
+	});
+	return $self;
 }
 
 # emit an error
 sub _error {
 	my ( $self, $error, $data ) = @_;
-	$error = {} unless $error && ref($error) eq 'HASH';
-	$data = [] unless $data && ref($data) eq 'ARRAY';
-	$error->{code} ||= 500;
-	$error->{message} ||= '';
-	my $message = $error->{code}." ".$error->{message}.": ";
-	for my $err ( @{$data} ) {
-		$message .= ($err->{message} || '').': ';
-		$message .= $err->{errorCode} ||= '';
+	my $message = '';
+	if ( $error && ref($error) eq 'HASH' ) {
+		$message .= sprintf("%s %s: ", $error->{code} || "500", $error->{message} || '');
 	}
-	$self->emit(error=>$message);
-	return undef;
+	return '' unless $message;
+	# no need to traverse the data if there's no error.
+	if ( $data ) {
+		if ( ref($data) eq 'ARRAY' ) {
+			for my $err ( @{$data} ) {
+				$message .= sprintf("%s: %s", $err->{errorCode}||$err->{error}||'',$err->{message}||$err->{error_description}||'');
+			}
+		}
+		elsif ( ref($data) eq 'HASH' ) {
+			$message .= sprintf("%s: %s", $data->{errorCode}||$data->{error}||'',$data->{message}||$data->{error_description}||'');
+		}
+	}
+	return $message;
 }
 
 # Get the headers we need to send each time
@@ -203,7 +185,6 @@ sub _headers {
 	my $header = {
 		Accept => 'application/json',
 		DNT => 1,
-		Date => Mojo::Date->new()->to_string(),
 		'Sforce-Query-Options' => 'batchSize=2000',
 		'Accept-Charset' => 'UTF-8',
 	};
@@ -212,32 +193,20 @@ sub _headers {
 	return $header;
 }
 
+sub _path {
+	my $self = shift;
+	return '/services/data/v'.$self->version.'/';
+}
+
 # returns true (1) if login required, else undef
 sub _login_required {
 	my $self = shift;
-	if( $self->_access_token && $self->api_host && $self->_api_path ) {
+	if( $self->_access_token && $self->_instance_url && $self->_path ) {
 		if ( my $time = $self->_access_time ) {
 			return undef if ( int((time() - $time)/60) < 30 );
 		}
 	}
 	return 1;
-}
-
-# keep creating next delay steps until we have all of the query data.
-sub _query_results_nb {
-	my ($delay, $ua, $tx ) = @_;
-	my $self = $delay->data('self') || die "Can't find SF object";
-	my $cb = $delay->data('cb') || ($self->emit(error=>"Can't find callback") && return undef);
-	return $self->_error($tx->error, $tx->res->json) unless $tx->success;
-	my $data = $tx->res->json;
-	my $records = $delay->data('records') || [];
-	push @{$records}, @{$data->{records}};
-	$delay->data(records=>$records);
-	return $self->$cb($records) if $data->{done};
-	return $self->$cb($records) unless $data->{nextRecordsUrl};
-	my $url = Mojo::URL->new($self->api_host)->path($data->{nextRecordsUrl});
-	$delay->steps(\&_query_results_nb);
-	$self->ua->get($url, $self->_headers(), $delay->begin(0) );
 }
 
 1;
@@ -251,53 +220,41 @@ WWW::Salesforce - Perl communication with the Salesforce RESTful API
 
 =head1 SYNOPSIS
 
-Blocking:
-
 	#!/usr/bin/env perl
 	use Mojo::Base -strict;
 	use WWW::Salesforce;
-	use Data::Dumper;
+	use Try::Tiny qw(try catch);
 
 	my $sf = WWW::Salesforce->new(
-		api_host => Mojo::URL->new('https://ca13.salesforce.com'),
+		login_url => Mojo::URL->new('https://login.salesforce.com'),
+		version => '34.0',
 		consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
 		consumer_secret => 'asdfasdjkfh234123513245',
 		username => 'foo@bar.com',
 		password => 'mypassword',
 		pass_token => 'mypasswordtoken123214123521345',
 	);
-	# handle any error events that get thrown (we'll just die for now)
-	$sf->on(error => sub {my ($e, $err) = @_; die $err});
 
-	say "Yay, we have a new SalesForce object!";
-
+	# blocking method
 	# calling login() will happen automatically.
-	my $records_array_ref = $sf->query('Select Id, Name, Phone from Account');
-	say Dumper $records_array_ref;
-	exit(0);
+	try {
+		my $results = $sf->query('Select Id, Name, Phone from Account');
+		say "found ", scalar(@{$results}), " results.";
+	}
+	catch {
+		die "Couldn't query the service: $_";
+	};
 
-Non-blocking:
-
-	#!/usr/bin/env perl
-	use Mojo::Base -strict;
-	use WWW::Salesforce;
-
-	my $sf = WWW::Salesforce->new(
-		api_host => Mojo::URL->new('https://ca13.salesforce.com'),
-		consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
-		consumer_secret => 'asdfasdjkfh234123513245',
-		username => 'foo@bar.com',
-		password => 'mypassword',
-		pass_token => 'mypasswordtoken123214123521345',
-	);
-	# handle any error events that get thrown (we'll just die for now)
-	$sf->on(error => sub {my ($e, $err) = @_; die $err});
-
+	#non-blocking method
 	# calling login() will happen automatically
-	$sf->query('select Name from Account',sub {
-		my ($self, $data) = @_;
-		say scalar(@{$data}) if $data;
-	});
+	Mojo::IOLoop::Delay->new->steps(
+		sub { $sf->query('select Name from Account',shift->begin(0)); },
+		sub {
+			my ($delay, $self, $err, $result) = @_;
+			die "Couldn't query for some reason: $err" if $err;
+			say "found ", scalar(@{$results}), " results.";
+		},
+	)->wait;
 
 =head1 DESCRIPTION
 
@@ -308,31 +265,9 @@ Creation of a new L<WWW::Salesforce> instance will not actually hit the server. 
 All API calls using this library will first make sure you are properly logged in using L<Session ID Authorization|http://www.salesforce.com/us/developer/docs/api_rest/Content/quickstart_oauth.htm>, but more specifically, the L<Salesforce Username-Password OAuth Authentication Flow|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm> to get your access token.
 It will also make sure that you have grabbed the L<latest API version|http://www.salesforce.com/us/developer/docs/api_rest/Content/dome_versions.htm> and use that version for all subsequent API method calls.
 
-=head1 EVENTS
-
-L<WWW::Salesforce> can emit the following events via L<Mojo::UserAgent> which is ultimately a L<Mojo::EventEmitter>.
-
-=head2 error
-
-	$sf->on(error => sub {
-		my ($e, $err) = @_;
-		...
-	});
-
-This is a special event for errors.  It is fatal if unhandled and stops the current request otherwise. See L<Mojo::EventEmitter#error>.
-
 =head1 ATTRIBUTES
 
 L<WWW::Salesforce> makes the following attributes available.
-
-=head2 api_host
-
-	my $host = $sf->api_host;
-	$host = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') );
-
-This is the base host of the API we're using.  This allows you to use any of your sandbox or live data areas easily.
-
-Note, changing this attribute might invalidate your access token after you've logged in. You may want to C<logout> before changing this setting.
 
 =head2 consumer_key
 
@@ -351,6 +286,13 @@ Note, this attribute is only used to generate the access token during C<login>. 
 The Consumer Secret (also referred to as the client_secret in the Saleforce documentation) is part of your L<Connected App|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm>.  It is a required field to be able to login.
 
 Note, this attribute is only used to generate the access token during C<login>. You may want to C<logout> before changing this setting.
+
+=head2 login_url
+
+	my $host = $sf->login_url;
+	$host = $sf->login_url( Mojo::URL->new('https://test.salesforce.com') );
+
+This is the base host of the API we're using.  This allows you to use any of your sandbox or live data areas easily. You may want to C<logout> before changing this setting.
 
 =head2 pass_token
 
@@ -385,50 +327,31 @@ The username is the email address you set for your user account in Salesforce.
 
 Note, this attribute is only used to generate the access token during C<login>. You may want to C<logout> before changing this setting.
 
+=head2 version
+
+	my $version = $sf->version;
+	$version = $sf->version( '34.0' );
+
+Tell us what API version you'd like to use.  Leave off the C<v> from the version number.
+
 =head1 METHODS
 
 L<WWW::Salesforce> makes the following methods available.
 
-=head2 api_path
-
-	# blocking
-	my $path = $sf->api_path();
-
-	# non-blocking
-	$sf->api_path(
-		my ($sf,$path) = @_;
-		say "The api path is $path";
-	);
-
-This is the path to the API version we're using.  We're always going to be using the latest API version available.
-On error, this method will emit an C<error> event. You should C<catch> errors as the caller.
-
-=head2 catch
-
-	$sf = $sf->catch(sub {...});
-
-Subscribe to an C<error> event.  See L<Mojo::EventEmitter#catch>.
-
-	# longer version
-	$sf->on(error => sub {...});
-
-=head2 emit
-
-	$sf = $sf->emit('error');
-	$sf = $sf->emit('error', "uh oh!");
-
-Emit an event.
-
 =head2 login
 
 	# blocking
-	$sf = $sf->login(); # allows for method-chaining
+	try {
+		$sf = $sf->login(); # allows for method-chaining
+	} catch {
+		die "Errors: $_";
+	};
 
 	# non-blocking
-	$sf->login(
-		my ($sf, $token) = @_;
+	$sf->login(sub {
+		my ($sf, $err, $token) = @_;
 		say "Our auth token is: $token";
-	);
+	});
 
 This method will and go through the L<Salesforce Username-Password OAuth Authentication Flow|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm>
 process if it needs to.
@@ -438,26 +361,35 @@ On error, this method will emit an C<error> event. You should catch errors as th
 
 =head2 logout
 
-	$sf = $sf->logout(); # allows for method chaining.
+	# blocking
+	try {
+		$sf = $sf->logout(); # allows for method chaining.
+	} catch {
+		die "Errors: $_";
+	};
 
-This method does not actually make any call to L<Salesforce|http://www.salesforce.com>.
-It only removes knowledge of your access token so that you can login again on your next API call.
+	# non-blocking
+	$sf->logout(sub {
+		my ( $sf, $err ) = @_;
+		say "We're logged out" unless $err;
+	});
 
-=head2 on
-
-	$sf->on(error => sub {...});
-
-Subscribe to an C<event>. See L<Mojo::EventEmitter#on>.
+This method will go through the L<Token Revocation Process|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_understanding_oauth_endpoints.htm>.
+It also removes knowledge of your access token so that you can login again on your next API call.
 
 =head2 query
 
 	# blocking
-	my $results = $sf->query('Select Id, Name, Phone from Account');
-	say Dumper $results;
+	try {
+		my $results = $sf->query('Select Id, Name, Phone from Account');
+		say Dumper $results;
+	} catch {
+		die "Errors: $_";
+	};
 
 	# non-blocking
 	$sf->query('select Id, Name, Phone from Account', sub {
-		my ($sf, $results) = @_;
+		my ($sf, $err, $results) = @_;
 		say Dumper $results;
 	});
 
@@ -466,19 +398,23 @@ On error, this method will emit an C<error> event. You should catch errors as th
 
 =head1 ERROR HANDLING
 
-Any and all errors that occur will emit an C<error> event. Events that aren't caught will trigger fatal exceptions. Catching errors is simple and allows you to log your error events any way you like:
+All blocking method calls will C<die> on error and thus you should use L<Try::Tiny> a lot.
 
-	my $sf = WWW::Salesforce->new(...);
-	$sf->catch(sub {
-		my ($e, $error) = @_;
-		# log it with whatever logging system you're using
-		$log->error($error);
-		# dump it to STDERR
-		warn $error;
-		# exit, maybe?
-		exit(1);
+	# blocking call
+	use Try::Tiny qw(try catch);
+	try {
+		my $res = $sf->do_something();
+	} catch {
+		die "uh oh: $_";
+	};
+
+All non-blocking methods will return an error string to the callback if there is one:
+
+	# non-blocking call
+	$sf->do_something(sub {
+		my ( $instance, $error_string, $results ) = @_;
+		die "uh oh: $error_string" if $error_string;
 	});
-	my $result_wont_happen = $sf->query('bad query statement to produce error');
 
 =head1 AUTHOR
 

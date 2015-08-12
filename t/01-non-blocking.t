@@ -18,15 +18,6 @@ BEGIN {
 app->log->level('fatal');
 get '/' => {text => 'works!'};
 get '/error/query' => {text=>'what?!?', status=>401};
-get '/services/data' => sub {
-	my $c = shift;
-	$c->render(json => [
-		{label=>"Winter '11",url=>"/services/data/v20.0",version=>"20.0"},
-		{label=>"Spring '11",url=>"/services/data/v21.0",version=>"21.0"},
-		{label=>"Summer '11",url=>"/services/data/v22.0",version=>"22.0"},
-		{label=>"Spring '15",url=>"/services/data/v33.0",version=>"33.0"},
-	]);
-};
 get '/services/data/v33.0/query' => sub {
 	my $c = shift;
 	my $query = $c->param('q');
@@ -65,10 +56,10 @@ post '/services/oauth2/token' => sub {
 };
 
 # force the URL to point to our mock-server
-my $sf = WWW::Salesforce->new(api_host => Mojo::URL->new('/'));
+my $sf = WWW::Salesforce->new(login_url => Mojo::URL->new('/'), version=>'33.0');
 isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' );
 
-# Test API Path gathering
-is($sf->api_path(),'/services/data/v33.0/','api_path: got the correct latest path');
+# Test version gathering
+is($sf->_path(),'/services/data/v33.0/','_path: got the correct path');
 
 done_testing();

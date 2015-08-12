@@ -9,20 +9,17 @@ It is EXTREMELY experimental at this point.  Use it at your own risk.  You've be
 * [Description](#description)
 * [Events](#events)
 * [Attributes](#attributes)
-	* [api\_host](#api_host)
 	* [consumer\_key](#consumer_key)
 	* [consumer\_secret](#consumer_secret)
+	* [login_url](#login_url)
 	* [pass\_token](#pass_token)
 	* [password](#password)
 	* [ua](#ua)
 	* [username](#username)
+	* [version](#version)
 * [Methods](#methods)
-	* [api\_path](#api_path)
-	* [catch](#catch)
-	* [emit](#emit)
 	* [login](#login)
 	* [logout](#logout)
-	* [on](#on)
 	* [query](#query)
 * [Error Handling](#error-handling)
 * [Author](#author)
@@ -30,53 +27,42 @@ It is EXTREMELY experimental at this point.  Use it at your own risk.  You've be
 
 ## SYNOPSIS
 
-### Blocking way
-
 ```perl
 #!/usr/bin/env perl
 use Mojo::Base -strict;
 use WWW::Salesforce;
-use Data::Dumper;
+use Try::Tiny qw(try catch);
 
 my $sf = WWW::Salesforce->new(
-	api_host => Mojo::URL->new('https://ca13.salesforce.com'),
+	login_url => Mojo::URL->new('https://login.salesforce.com'),
+	version => '34.0',
 	consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
 	consumer_secret => 'asdfasdjkfh234123513245',
 	username => 'foo@bar.com',
 	password => 'mypassword',
 	pass_token => 'mypasswordtoken123214123521345',
 );
-$sf->on(error=> sub{ die pop });
-## calling login() will happen automatically on any API call
-my $records_array_ref = $sf->query('Select Id, Name, Phone from Account');
-say Dumper $records_array_ref;
-exit(0);
-```
 
-### Non-Blocking way
+# blocking method
+# calling login() will happen automatically.
+try {
+	my $results = $sf->query('Select Id, Name, Phone from Account');
+	say "found ", scalar(@{$results}), " results.";
+}
+catch {
+	die "Couldn't query the service: $_";
+};
 
-```perl
-#!/usr/bin/env perl
-use Mojo::Base -strict;
-use Mojo::IOLoop;
-use WWW::Salesforce;
-
-Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
-my $sf = WWW::Salesforce->new(
-	api_host => Mojo::URL->new('https://ca13.salesforce.com'),
-	consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
-	consumer_secret => 'asdfasdjkfh234123513245',
-	username => 'foo@bar.com',
-	password => 'mypassword',
-	pass_token => 'mypasswordtoken123214123521345',
-);
-$sf->catch(sub {die pop});
-
-## calling login() will happen automatically on any API call
-$sf->query('select Name from Account',sub {
-	my ($self, $data) = @_;
-	say "Found ".scalar(@{$data})." results" if $data;
-});
+#non-blocking method
+# calling login() will happen automatically
+Mojo::IOLoop::Delay->new->steps(
+	sub { $sf->query('select Name from Account',shift->begin(0)); },
+	sub {
+		my ($delay, $self, $err, $result) = @_;
+		die "Couldn't query for some reason: $err" if $err;
+		say "found ", scalar(@{$results}), " results.";
+	},
+)->wait;
 ```
 
 ## DESCRIPTION
@@ -88,35 +74,9 @@ Creation of a new [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/)
 All API calls using this library will first make sure you are properly logged in using [Session ID Authorization](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/quickstart_oauth.htm), but more specifically, the [Salesforce Username-Password OAuth Authentication Flow](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_understanding_username_password_oauth_flow.htm) to get your access token.
 It will also make sure that you have grabbed the [latest API version](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_versions.htm) and use that version for all subsequent API method calls.
 
-## EVENTS
-
-[WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) can emit the following events via [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) which is ultimately a [Mojo::EventEmitter](https://metacpan.org/pod/Mojo::EventEmitter).
-
-### error
-
-```perl
-$sf->on(error => sub {
-	my ( $e, $err ) = @_;
-	...
-});
-```
-
-This is a special event for errors.  It is fatal if unhandled and stops the current request otherwise. See [Mojo::EventEmitter#error](https://metacpan.org/pod/Mojo::EventEmitter#error).
-
 ## ATTRIBUTES
 
 [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) makes the following attributes available.
-
-### api\_host
-
-```perl
-my $host = $sf->api_host;
-$host = $sf->api_host( Mojo::URL->new('https://test.salesforce.com') );
-```
-
-This is the base host of the API we're using.  This allows you to use any of your sandbox or live data areas easily.
-
-Note, changing this attribute might invalidate your access token after you've logged in. You may want to [logout](#logout) before changing this setting.
 
 ### consumer\_key
 
@@ -139,6 +99,15 @@ $secret = $sf->consumer_secret( 'asdfas123513245' );
 The Consumer Secret (also referred to as the client\_secret in the Saleforce documentation) is part of your [Connected App](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm).  It is a required field to be able to login.
 
 Note, this attribute is only used to generate the access token during [login](#login).  You may want to [logout](#logout) before changing this setting.
+
+### login\_url
+
+```perl
+my $host = $sf->login_url;
+$host = $sf->login_url( Mojo::URL->new('https://test.salesforce.com') );
+```
+
+This is the base host of the API we're using.  This allows you to use any of your sandbox or live data areas easily. You may want to [logout](#logout) before changing this setting.
 
 ### pass\_token
 
@@ -180,47 +149,19 @@ $username = $sf->username( 'foo@bar.com' );
 The username is the email address you set for your user account in Salesforce.
 Note, this attribute is only used to generate the access token during [login](#login).  You may want to [logout](#logout) before changing this setting.
 
+### version
+
+```perl
+my $version = $sf->version;
+$version = $sf->version( '34.0' );
+```
+
+Tell us what API version you'd like to use.  Leave off the ```v``` from the version number.
+
+
 ## METHODS
 
 [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) makes the following methods available.
-
-### api\_path
-
-```perl
-## blocking
-my $path = $sf->api_path();
-
-## non-blocking
-$sf->api_path(
-	my ($sf,$path) = @_;
-	say "The api path is $path";
-);
-```
-
-This is the path to the API version we're using.  It's always the latest version of the [Salesforce API](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_versions.htm).
-On error, this method will emit an [error](#error) event. You should [catch](#catch) errors as the caller.
-
-### catch
-
-```perl
-$sf = $sf->catch(sub {...});
-```
-
-Subscribe to ["error"](#error) event. See [Mojo::EventEmitter#catch](https://metacpan.org/pod/Mojo::EventEmitter#catch).
-
-```perl
-# longer version
-$sf->on(error => sub {...});
-```
-
-### emit
-
-```perl
-$sf = $sf->emit('error');
-$sf = $sf->emit('error', "uh oh!");
-```
-
-Emit an event.
 
 ### login
 
@@ -249,14 +190,6 @@ $sf = $sf->logout(); # allows for method-chaining
 This method does not actually make any call to [Salesforce](http://www.salesforce.com).
 It only removes knowledge of your access token so that you can login again on your next API call.
 
-### on
-
-```perl
-$sf->on(error => sub {...});
-```
-
-Subscribe to an event. See [Mojo::EventEmitter#on](https://metacpan.org/pod/Mojo::EventEmitter#on).
-
 ### query
 
 ```perl
@@ -276,20 +209,26 @@ On error, this method will emit an [error](#error) event. You should [catch](#ca
 
 ## ERROR HANDLING
 
-Any and all errors that occur will emit an [error](#error) event. Events that aren't [caught](#catch) will trigger fatal exceptions. Catching errors is simple and allows you to log your error events any way you like:
+All blocking method calls will ```die``` on error and thus you should use [Try::Tiny](https://metacpan.org/pod/Try::Tiny) a lot.
 
 ```perl
-my $sf = WWW::Salesforce->new(...);
-$sf->catch(sub {
-	my ($e, $error) = @_;
-	# log it with whatever logging system you're using
-	$log->error($error);
-	# dump it to STDERR
-	warn $error;
-	# exit, maybe?
-	exit(1);
+# blocking call
+use Try::Tiny qw(try catch);
+try {
+	my $res = $sf->do_something();
+} catch {
+	die "uh oh: $_";
+};
+```
+
+All non-blocking methods will return an error string to the callback if there is one:
+
+```perl
+# non-blocking call
+$sf->do_something(sub {
+	my ( $instance, $error_string, $results ) = @_;
+	die "uh oh: $error_string" if $error_string;
 });
-my $result_wont_happen = $sf->query('bad query statement to produce error');
 ```
 
 ## AUTHOR
