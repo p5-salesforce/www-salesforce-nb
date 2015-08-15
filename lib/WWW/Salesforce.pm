@@ -4,6 +4,7 @@ use Moo;
 use Mojo::URL;
 use Mojo::UserAgent;
 use strictures 2;
+use WWW::Salesforce::Connector;
 use namespace::clean;
 
 our $VERSION = '0.005';
@@ -15,6 +16,15 @@ has '_instance_url' => (is => 'rw', default => '' );
 # salesforce login attributes
 has consumer_key => (is =>'rw',default=>'');
 has consumer_secret => (is =>'rw',default=>'');
+has login_type => (
+	is => 'rw',
+	required => 1,
+	isa => sub {
+		my $val = shift;
+		die "Invalid login_type requested." unless $val && grep {/^$val$/} @WWW::Salesforce::Connector::TYPES;
+	},
+	default => 'oauth2_up',
+);
 has login_url => (is => 'rw', required=>1, default => sub {Mojo::URL->new('https://login.salesforce.com/') } );
 has password => (is =>'rw',default=>'');
 has pass_token => (is =>'rw',default=>'');
@@ -27,79 +37,8 @@ has version => (
 	default => '34.0',
 );
 
-# attempt a login to Salesforce to obtain a token
-sub login {
-	my ($self, $cb) = @_;
-	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
-	unless ( $self->_login_required ) {
-		$self->$cb(undef, $self->_access_token) if $cb;
-		return $self;
-	}
-
-	my $url = Mojo::URL->new($self->login_url)->path("/services/oauth2/token");
-	my $form = {
-		grant_type => 'password',
-		client_id => $self->consumer_key,
-		client_secret => $self->consumer_secret,
-		username => $self->username,
-		password => $self->password . $self->pass_token,
-	};
-	# blocking request
-	unless ($cb) {
-		my $tx = $self->ua->post($url, $self->_headers(), form => $form);
-		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
-		my $data = $tx->res->json;
-		$self->_instance_url($data->{instance_url});
-		$self->_access_token($data->{access_token});
-		$self->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
-		return $self;
-	}
-
-	# non-blocking request
-	$self->ua->post($url, $self->_headers(), form => $form, sub {
-		my ($ua, $tx) = @_;
-		return $self->$cb($self->_error($tx->error, $tx->res->json),undef) unless $tx->success;
-		my $data = $tx->res->json;
-		$self->_instance_url(Mojo::URL->new($data->{instance_url}));
-		$self->_access_token($data->{access_token});
-		$self->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
-		return $self->$cb(undef, $self->_access_token);
-	});
-	return $self;
-}
-
-# log out of salesforce and invalidate the token we're using
-sub logout {
-	my ($self,$cb) = @_;
-	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
-	if ( $self->_login_required ) {
-		# we don't need to logout
-		$self->$cb(undef,1) if $cb;
-		return $self;
-	}
-	my $url = Mojo::URL->new($self->_instance_url)->path("/services/oauth2/revoke");
-	#blocking request
-	unless ( $cb ) {
-		my $tx = $self->ua->post($url, $self->_headers(), form =>{token=>$self->_access_token});
-		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
-		$self->_instance_url(undef);
-		$self->_path(undef);
-		$self->_access_token(undef);
-		$self->_access_time(0);
-		return $self;
-	}
-	# non-blocking request
-	$self->ua->post($url, $self->_headers(), form =>{token=>$self->_access_token}, sub {
-		my ($ua, $tx) = @_;
-		return $self->$cb($self->_error($tx->error, $tx->res->json),undef) unless $tx->success;
-		$self->_instance_url(undef);
-		$self->_path(undef);
-		$self->_access_token(undef);
-		$self->_access_time(0);
-		return $self->$cb(undef, 1);
-	});
-	return $self;
-}
+sub login {WWW::Salesforce::Connector->login(@_)}
+sub logout {WWW::Salesforce::Connector->logout(@_)}
 
 # run a query
 sub query {
@@ -192,7 +131,10 @@ sub _path {
 	my $self = shift;
 	return '/services/data/v'.$self->version.'/';
 }
-
+sub _path_soap {
+	my $self = shift;
+	return '/services/Soap/u/'.$self->version.'/';
+}
 # returns true (1) if login required, else undef
 sub _login_required {
 	my $self = shift;
@@ -220,7 +162,18 @@ WWW::Salesforce - Perl communication with the Salesforce RESTful API
 	use WWW::Salesforce;
 	use Try::Tiny qw(try catch);
 
-	my $sf = WWW::Salesforce->new(
+	# via soap
+	my $sf_soap = WWW::Salesforce->new(
+		login_type => 'soap',
+		login_url => Mojo::URL->new('https://login.salesforce.com'),
+		version => '34.0',
+		username => 'foo@bar.com',
+		password => 'mypassword',
+		pass_token => 'mypasswordtoken123214123521345',
+	);
+	# via OAuth2 username and password
+	my $sf_oauth2 = WWW::Salesforce->new(
+		login_type => 'oauth2_up', # this is the default
 		login_url => Mojo::URL->new('https://login.salesforce.com'),
 		version => '34.0',
 		consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
@@ -233,23 +186,31 @@ WWW::Salesforce - Perl communication with the Salesforce RESTful API
 	# blocking method
 	# calling login() will happen automatically.
 	try {
-		my $results = $sf->query('Select Id, Name, Phone from Account');
-		say "found ", scalar(@{$results}), " results.";
+		my $res_soap = $sf_soap->query('Select Id, Name, Phone from Account');
+		say "found ", scalar(@{$res_soap}), " results via SOAP then RESTful API.";
+		my $res_oauth = $sf_oauth2->query('Select Id, Name, Phone from Account');
+		say "found ", scalar(@{$res_oauth}), " results via OAuth2 then RESTful API.";
 	}
 	catch {
 		die "Couldn't query the service: $_";
 	};
 
-	#non-blocking method
+	# non-blocking method
 	# calling login() will happen automatically
-	Mojo::IOLoop::Delay->new->steps(
-		sub { $sf->query('select Name from Account',shift->begin(0)); },
+	Mojo::IOLoop->delay(
 		sub {
-			my ($delay, $self, $err, $result) = @_;
-			die "Couldn't query for some reason: $err" if $err;
-			say "found ", scalar(@{$results}), " results.";
+			my $delay = shift;
+			$sf_soap->query('select Id from Account', $delay->begin);
+			$sf_oauth2->query('select Id from Account', $delay->begin);
 		},
-	)->wait;
+		sub {
+			my ($delay, $err,$soap,$err2,$oauth) = @_;
+			Carp::croak( $err ) if $err; # make it fatal
+			Carp::croak( $err2 ) if $err2; # make it fatal
+			say scalar(@$soap), " from soap";
+			say scalar(@$oauth), " from oauth2";
+		},
+	)->catch(sub {say "uh oh, ",pop;})->wait;
 
 =head1 DESCRIPTION
 
@@ -281,6 +242,34 @@ Note, this attribute is only used to generate the access token during C<login>. 
 The Consumer Secret (also referred to as the client_secret in the Saleforce documentation) is part of your L<Connected App|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm>.  It is a required field to be able to login.
 
 Note, this attribute is only used to generate the access token during C<login>. You may want to C<logout> before changing this setting.
+
+=head2 login_type
+
+	my $type = $sf->login_type;
+	$type = $sf->login_type( 'oauth2_up' );
+
+This is what will determine our login method of choice. No matter which login
+method you choose, we're going to communicate to the Salesforce services using an
+C<Authorization: Bearer token> header. The login method just dictates how we
+will request that token from Salesforce.
+Different methods of login require slightly different sets of data in order for the login to take place.
+
+You may want to C<logout> before changing this setting.
+
+Available types are:
+
+=over
+
+=item oauth2_up
+
+This login type is the default.  It will require your C<consumer_key>, C<consumer_secret>, C<username>, C<password>, C<pass_token> and C<login_url>.  This method will go through the L<Salesforce Username-Password OAuth Authentication Flow|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm>.
+
+=item soap
+
+This method will only require your C<username>, C<password>, C<pass_token> and C<login_url>.
+It will go through the L<Salesforce SOAP-based username and password login flow|https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/sforce_api_calls_login.htm>.
+
+=back
 
 =head2 login_url
 

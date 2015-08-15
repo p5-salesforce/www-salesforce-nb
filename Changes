@@ -1,5 +1,9 @@
 Revision history for Perl extension WWW::Salesforce.
 
+0.006
+	- split logins out to the Connector class.
+	- allows for soap and oauth2 based logins
+
 0.005
 	- die on error in blocking code
 	- change non-blocking to return $self, $err, $data on error

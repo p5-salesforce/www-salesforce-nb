@@ -28,12 +28,18 @@ It is EXTREMELY experimental at this point.  Use it at your own risk.  You've be
 ## SYNOPSIS
 
 ```perl
-#!/usr/bin/env perl
-use Mojo::Base -strict;
-use WWW::Salesforce;
-use Try::Tiny qw(try catch);
-
-my $sf = WWW::Salesforce->new(
+# via soap
+my $sf_soap = WWW::Salesforce->new(
+	login_type => 'soap',
+	login_url => Mojo::URL->new('https://login.salesforce.com'),
+	version => '34.0',
+	username => 'foo@bar.com',
+	password => 'mypassword',
+	pass_token => 'mypasswordtoken123214123521345',
+);
+# via OAuth2 username and password
+my $sf_oauth2 = WWW::Salesforce->new(
+	login_type => 'oauth2_up', # this is the default
 	login_url => Mojo::URL->new('https://login.salesforce.com'),
 	version => '34.0',
 	consumer_key => 'alksdlkj3hasdg;jlaksghajdhgaghasdg.asdgfasodihgaopih.asdf',
@@ -46,23 +52,31 @@ my $sf = WWW::Salesforce->new(
 # blocking method
 # calling login() will happen automatically.
 try {
-	my $results = $sf->query('Select Id, Name, Phone from Account');
-	say "found ", scalar(@{$results}), " results.";
+	my $res_soap = $sf_soap->query('Select Id, Name, Phone from Account');
+	say "found ", scalar(@{$res_soap}), " results via SOAP then RESTful API.";
+	my $res_oauth = $sf_oauth2->query('Select Id, Name, Phone from Account');
+	say "found ", scalar(@{$res_oauth}), " results via OAuth2 then RESTful API.";
 }
 catch {
 	die "Couldn't query the service: $_";
 };
 
-#non-blocking method
+# non-blocking method
 # calling login() will happen automatically
-Mojo::IOLoop::Delay->new->steps(
-	sub { $sf->query('select Name from Account',shift->begin(0)); },
+Mojo::IOLoop->delay(
 	sub {
-		my ($delay, $self, $err, $result) = @_;
-		die "Couldn't query for some reason: $err" if $err;
-		say "found ", scalar(@{$results}), " results.";
+		my $delay = shift;
+		$sf_soap->query('select Id from Account', $delay->begin);
+		$sf_oauth2->query('select Id from Account', $delay->begin);
 	},
-)->wait;
+	sub {
+		my ($delay, $err,$soap,$err2,$oauth) = @_;
+		Carp::croak( $err ) if $err; # make it fatal
+		Carp::croak( $err2 ) if $err2; # make it fatal
+		say scalar(@$soap), " from soap";
+		say scalar(@$oauth), " from oauth2";
+	},
+)->catch(sub {say "uh oh, ",pop;})->wait;
 ```
 
 ## DESCRIPTION
@@ -99,6 +113,28 @@ $secret = $sf->consumer_secret( 'asdfas123513245' );
 The Consumer Secret (also referred to as the client\_secret in the Saleforce documentation) is part of your [Connected App](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm).  It is a required field to be able to login.
 
 Note, this attribute is only used to generate the access token during [login](#login).  You may want to [logout](#logout) before changing this setting.
+
+### login\_type
+
+```perl
+my $type = $sf->login_type;
+$type = $sf->login_type( 'oauth2_up' );
+```
+
+This is what will determine our login method of choice. No matter which login method you choose, we're going to communicate to the Salesforce services using an ```Authorization: Bearer token``` header. The login method just dictates how we will request that token from Salesforce.  Different methods of login require slightly different sets of data in order for the login to take place.
+
+You may want to [logout](#logout) before changing this setting.
+
+Available types are:
+
+#### oauth2_up
+
+This login type is the default.  It will require your [consumer\_key](#consumer_key), [consumer\_secret](#consumer_secret), [username](#username), [password](#password), [pass\_token](#pass_token) and [login\_url](#login_url).  This method will go through the [Salesforce Username-Password OAuth Authentication Flow](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm).
+
+
+#### soap
+
+This method will only require your [username](#username), [password](#password), [pass\_token](#pass_token) and [login\_url](#login_url). It will go through the [Salesforce SOAP-based username and password login flow](https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/sforce_api_calls_login.htm).
 
 ### login\_url
 
