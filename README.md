@@ -34,7 +34,6 @@ It is EXTREMELY experimental at this point.  Use it at your own risk.  You've be
 * [Author](#author)
 * [Bugs](#bugs)
 
-
 ## SYNOPSIS
 
 ```perl
