@@ -625,6 +625,7 @@ It also removes knowledge of your access token so that you can login again on yo
 	});
 
 This method calls the Salesforce L<Query method|http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm>.  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
+Your query string must be in the form of an L<SOQL String|https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_select.htm>.
 
 =head2 retrieve
 
@@ -643,6 +644,25 @@ $sf->retrieve('Account','01231ABCDFQ2100002', [qw(Optional FieldName List Here)]
 });
 
 This method calls the Salesforce L<Retrieve method|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_get_field_values.htm>.
+
+=head2 search
+
+# blocking
+try {
+	my $results = $sf->search('FIND{genio*}');
+	say Dumper $results;
+} catch {
+	die "Errors: $_";
+};
+
+# non-blocking
+$sf->search('FIND{genio*}', sub {
+	my ($sf, $err, $results) = @_;
+	say Dumper $results;
+});
+
+This method calls the Salesforce L<Search method|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_search.htm>.
+Your search query must be in the form of an L<SOSL String|https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_sosl_syntax.htm>.
 
 =head1 ERROR HANDLING
 
