@@ -27,6 +27,8 @@ It is EXTREMELY experimental at this point.  Use it at your own risk.  You've be
 	* [login](#login)
 	* [logout](#logout)
 	* [query](#query)
+	* [retrieve](#retrieve)
+	* [search](#search)
 * [Error Handling](#error-handling)
 * [Author](#author)
 * [Bugs](#bugs)
@@ -320,6 +322,28 @@ $sf->query('select Id, Name, Phone from Account', sub {
 ```
 
 This method calls the Salesforce [Query method](http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm).  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
+
+### retrieve
+
+```perl
+# blocking
+try {
+	my $results = $sf->retrieve('Account','01231ABCDFQ2100002', [qw(Optional FieldName List Here)]);
+	# can also call as ->retrieve('Account','01231ABCDFQ2100002')
+	say Dumper $results;
+} catch {
+	die "Errors: $_";
+};
+
+# non-blocking
+$sf->retrieve('Account','01231ABCDFQ2100002', [qw(Optional FieldName List Here)], sub {
+	# can also call as ->retrieve('Account','01231ABCDFQ2100002', sub {...});
+	my ($sf, $err, $results) = @_;
+	say Dumper $results;
+});
+```
+
+This method calls the Salesforce [Retrieve method](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_get_field_values.htm).
 
 ## ERROR HANDLING
 

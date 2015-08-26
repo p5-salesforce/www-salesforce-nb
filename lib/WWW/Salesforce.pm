@@ -626,6 +626,24 @@ It also removes knowledge of your access token so that you can login again on yo
 
 This method calls the Salesforce L<Query method|http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm>.  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
 
+=head2 retrieve
+
+# blocking
+try {
+	my $results = $sf->retrieve('Account','01231ABCDFQ2100002', [qw(Optional FieldName List Here)]);
+	say Dumper $results;
+} catch {
+	die "Errors: $_";
+};
+
+# non-blocking
+$sf->retrieve('Account','01231ABCDFQ2100002', [qw(Optional FieldName List Here)], sub {
+	my ($sf, $err, $results) = @_;
+	say Dumper $results;
+});
+
+This method calls the Salesforce L<Retrieve method|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_get_field_values.htm>.
+
 =head1 ERROR HANDLING
 
 All blocking method calls will C<die> on error and thus you should use L<Try::Tiny> a lot.
