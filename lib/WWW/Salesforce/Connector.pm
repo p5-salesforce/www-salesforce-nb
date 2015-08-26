@@ -254,7 +254,6 @@ This method will and go through the L<Salesforce Username-Password OAuth Authent
 process if it needs to.
 Calling this method on your own is not necessary as any API call will call C<login> if necessary.  This could be helpful if you're changing C<api_host>s on your instance.
 This method will update your C<access_token> on a successful login.
-On error, this method will emit an C<error> event. You should catch errors as the caller.
 
 =head2 logout
 
@@ -273,25 +272,6 @@ On error, this method will emit an C<error> event. You should catch errors as th
 
 This method will go through the L<Token Revocation Process|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_understanding_oauth_endpoints.htm>.
 It also removes knowledge of your access token so that you can login again on your next API call.
-
-=head2 query
-
-	# blocking
-	try {
-		my $results = $sf->query('Select Id, Name, Phone from Account');
-		say Dumper $results;
-	} catch {
-		die "Errors: $_";
-	};
-
-	# non-blocking
-	$sf->query('select Id, Name, Phone from Account', sub {
-		my ($sf, $err, $results) = @_;
-		say Dumper $results;
-	});
-
-This method calls the Salesforce L<Query method|http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm>.  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
-On error, this method will emit an C<error> event. You should catch errors as the caller.
 
 =head1 AUTHOR
 

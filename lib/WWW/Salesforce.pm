@@ -571,7 +571,6 @@ This method will and go through the L<Salesforce Username-Password OAuth Authent
 process if it needs to.
 Calling this method on your own is not necessary as any API call will call C<login> if necessary.  This could be helpful if you're changing C<api_host>s on your instance.
 This method will update your C<access_token> on a successful login.
-On error, this method will emit an C<error> event. You should catch errors as the caller.
 
 =head2 logout
 
