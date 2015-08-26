@@ -40,13 +40,115 @@ has version => (
 sub login {WWW::Salesforce::Connector->login(@_)}
 sub logout {WWW::Salesforce::Connector->logout(@_)}
 
+sub create {
+	my ($self, $type, $params, $cb) = @_;
+	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
+
+	unless ($type) {
+		die 'You cannot create an object of unknown type' unless $cb;
+		$self->$cb('You cannot create an object of unknown type',undef);
+		return $self;
+	}
+	unless ($params && ref($params) eq 'HASH') {
+		die 'You must supply a hashref representation of the object to create.' unless $cb;
+		$self->$cb('You must supply a hashref representation of the object to create.',undef);
+		return $self;
+	}
+
+	# blocking request
+	unless ( $cb ) {
+		$self->login();
+		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type");
+		my $tx = $self->ua->post($url, $self->_headers(), json => $params);
+		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		return $tx->res->json;
+	}
+
+	# non-blocking request
+	$self->login(sub {
+		my ( $sf, $err, $token ) = @_;
+		return $sf->$cb($err,[]) if $err;
+		return $sf->$cb('No login token',[]) unless $token;
+		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$type");
+		$sf->ua->post($url, $sf->_headers(), json=>$params,sub {
+			my ($ua, $tx) = @_;
+			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb(undef,$tx->res->json);
+		});
+	});
+	return $self;
+}
+
+# describe an object
+sub describe {
+	my ($self, $object, $cb) = @_;
+	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
+	unless ($object) {
+		die 'An object is required to describe it' unless $cb;
+		$self->$cb('An object is required to describe it',undef);
+		return $self;
+	}
+
+	# blocking request
+	unless ( $cb ) {
+		$self->login(); # handles renewing the auth token if necessary
+		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$object/describe");
+		my $tx = $self->ua->get($url, $self->_headers());
+		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		return $tx->res->json;
+	}
+
+	# non-blocking request
+	$self->login(sub {
+		my ( $sf, $err, $token ) = @_;
+		return $sf->$cb($err,[]) if $err;
+		return $sf->$cb('No login token',[]) unless $token;
+		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$object/describe");
+		$sf->ua->get($url, $sf->_headers(), sub {
+			my ($ua, $tx) = @_;
+			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb(undef,$tx->res->json);
+		});
+	});
+	return $self;
+}
+
+# get our limits
+sub limits {
+	my ($self, $cb) = @_;
+	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
+	# blocking request
+	unless ( $cb ) {
+		$self->login(); # handles renewing the auth token if necessary
+		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("limits");
+		my $tx = $self->ua->get($url, $self->_headers());
+		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		return $tx->res->json;
+	}
+
+	# non-blocking request
+	$self->login(sub {
+		my ( $sf, $err, $token ) = @_;
+		return $sf->$cb($err,[]) if $err;
+		return $sf->$cb('No login token',[]) unless $token;
+		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("limits");
+		$sf->ua->get($url, $sf->_headers(), sub {
+			my ($ua, $tx) = @_;
+			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb(undef,$tx->res->json);
+		});
+	});
+	return $self;
+}
+
 # run a query
 sub query {
 	my ($self, $query, $cb) = @_;
 	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
 	unless ($query) {
-		$self->$cb('A query is required',[]) if $cb;
-		return $cb? $self: [];
+		die 'A query is required' unless $cb;
+		$self->$cb('A query is required',[]);
+		return $self;
 	}
 
 	# blocking request
@@ -87,6 +189,83 @@ sub query {
 			$sf->ua->get(Mojo::URL->new($sf->_instance_url)->path($data->{nextRecordsUrl}), $sf->_headers(), $results_nb);
 		};
 		$sf->ua->get($url, $sf->_headers(), form => { q => $query, }, $results_nb);
+	});
+	return $self;
+}
+
+# grab a single object
+sub retrieve {
+	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
+	my ( $self, $object, $id, $fields ) = @_;
+	$fields = ($fields && ref($fields) eq 'ARRAY')? $fields: undef;
+	unless ($object) {
+		die( "An SObject type is required for retrieve()" ) unless $cb;
+		$self->$cb('An SObject type is required for retrieve()',[]) if $cb;
+		return $self;
+	}
+	unless ($id && $id =~ /^[a-zA-Z0-9]+$/) {
+		die( "An SObject ID is required for retrieve()" ) unless $cb;
+		$self->$cb('An SObject ID is required for retrieve()',[]) if $cb;
+		return $self;
+	}
+	#blocking request
+	unless ($cb) {
+		$self->login();
+		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$object/$id");
+		$url->query('fields'=> join(', ', @{$fields})) if $fields;
+		my $tx = $self->ua->get( $url, $self->_headers() );
+		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		return $tx->res->json;
+	}
+
+	# non-blocking request
+	$self->login(sub {
+		my ( $sf, $err, $token ) = @_;
+		return $sf->$cb($err,[]) if $err;
+		return $sf->$cb('No login token',[]) unless $token;
+		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$object/$id");
+		$url->query('fields'=> join(', ', @{$fields})) if $fields;
+		$sf->ua->get($url, $sf->_headers(), sub {
+			my ($ua, $tx) = @_;
+			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb(undef,$tx->res->json);
+		});
+	});
+	return $self;
+}
+
+# describe an object
+sub search {
+	my ($self, $sosl, $cb) = @_;
+	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
+	unless ($sosl) {
+		die 'An SOSL statement is required to search' unless $cb;
+		$self->$cb('An SOSL statement is required to search',undef);
+		return $self;
+	}
+
+	# blocking request
+	unless ( $cb ) {
+		$self->login(); # handles renewing the auth token if necessary
+		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("search/");
+		$url->query(q=>$sosl);
+		my $tx = $self->ua->get($url, $self->_headers());
+		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		return $tx->res->json;
+	}
+
+	# non-blocking request
+	$self->login(sub {
+		my ( $sf, $err, $token ) = @_;
+		return $sf->$cb($err,[]) if $err;
+		return $sf->$cb('No login token',[]) unless $token;
+		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("search/");
+		$url->query(q=>$sosl);
+		$sf->ua->get($url, $sf->_headers(), sub {
+			my ($ua, $tx) = @_;
+			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb(undef,$tx->res->json);
+		});
 	});
 	return $self;
 }
@@ -143,6 +322,7 @@ sub _login_required {
 			return undef if ( int((time() - $time)/60) < 30 );
 		}
 	}
+	$self->ua->cookie_jar->empty();
 	return 1;
 }
 
