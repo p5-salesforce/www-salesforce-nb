@@ -21,6 +21,8 @@ It is EXTREMELY experimental at this point.  Use it at your own risk.  You've be
 	* [username](#username)
 	* [version](#version)
 * [Methods](#methods)
+	* [create](#create)
+	* [describe](#describe)
 	* [login](#login)
 	* [logout](#logout)
 	* [query](#query)
@@ -201,6 +203,60 @@ Tell us what API version you'd like to use.  Leave off the ```v``` from the vers
 ## METHODS
 
 [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) makes the following methods available.
+
+### create
+
+```perl
+# blocking
+try {
+	my $res = $sf->create('Account',{fieldName=>'value'});
+	if ( $res->{success} ) { # even if the tx succeeds, check the response!
+		say "Newly entered Account goes by the id: ",$res->{id};
+	}
+	else {
+		die Dumper $res->{errors};
+	}
+} catch {
+	die "Errors: $_";
+};
+
+# non-blocking
+$sf->create('Account',{fieldName=>'value'}, sub {
+	my ($sf, $err, $res) = @_;
+	die "Got an error trying to create the Account: $err" if $err;
+	if ( $res->{success} ) { # even if the tx succeeds, check the response!
+		say "Newly entered Account goes by the id: ",$res->{id};
+	}
+	else {
+		die Dumper $res->{errors};
+	}
+});
+```
+
+This method calls the Salesforce [Create method](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_sobject_create.htm).
+On a successful transaction, a JSON response is returned with three fields (```id```, ```success```, and ```errors```).  You should check that response to see if your creation attempt actually succeeded.
+
+### describe
+
+```perl
+# blocking
+try {
+	my $res = $sf->describe('Account');
+	say Dumper $res; #all the info about the Account SObject
+} catch {
+	die "Errors: $_";
+};
+
+# non-blocking
+$sf->describe('Account', sub {
+	my ($sf, $err, $res) = @_;
+	die "Got an error trying to describe the Account: $err" if $err;
+	say Dumper $res; #all the info about the Account SObject
+});
+```
+
+This method calls the Salesforce [Describe method](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_sobject_describe.htm).
+On a successful transaction, a JSON response is returned with data full of useful information about the SObject.
 
 ### login
 
