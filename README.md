@@ -23,6 +23,7 @@ It is EXTREMELY experimental at this point.  Use it at your own risk.  You've be
 * [Methods](#methods)
 	* [create](#create)
 	* [describe](#describe)
+	* [limits](#limits)
 	* [login](#login)
 	* [logout](#logout)
 	* [query](#query)
@@ -258,6 +259,26 @@ $sf->describe('Account', sub {
 This method calls the Salesforce [Describe method](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_sobject_describe.htm).
 On a successful transaction, a JSON response is returned with data full of useful information about the SObject.
 
+### limits
+
+```perl
+# blocking
+try {
+	my $results = $sf->limits();
+	say Dumper $results;
+} catch {
+	die "Errors: $_";
+};
+
+# non-blocking
+$sf->limits(sub {
+	my ($sf, $err, $results) = @_;
+	say Dumper $results;
+});
+```
+
+This method calls the Salesforce [Limits method](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_limits.htm).
+
 ### login
 
 ```perl
@@ -274,7 +295,6 @@ $sf->login(
 This method will go through the [Salesforce Username-Password OAuth Authentication Flow](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm) process if it needs to.
 Calling this method on your own is not necessary as any API call will call ```login``` if necessary.  This could be helpful if you're changing ```api_host```s on your instance.
 This method will update your ```access_token``` on a successful login.
-On error, this method will emit an [error](#error) event. You should [catch](#catch) errors as the caller.
 
 ### logout
 
@@ -300,7 +320,6 @@ $sf->query('select Id, Name, Phone from Account', sub {
 ```
 
 This method calls the Salesforce [Query method](http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm).  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
-On error, this method will emit an [error](#error) event. You should [catch](#catch) errors as the caller.
 
 ## ERROR HANDLING
 

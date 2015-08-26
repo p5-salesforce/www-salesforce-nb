@@ -552,6 +552,24 @@ $sf->describe('Account', sub {
 This method calls the Salesforce L<Describe method|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_sobject_describe.htm>.
 On a successful transaction, a JSON response is returned with data full of useful information about the SObject.
 
+=head2 limits
+
+# blocking
+try {
+	my $results = $sf->limits();
+	say Dumper $results;
+} catch {
+	die "Errors: $_";
+};
+
+# non-blocking
+$sf->limits(sub {
+	my ($sf, $err, $results) = @_;
+	say Dumper $results;
+});
+
+This method calls the Salesforce L<Limits method|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_limits.htm>.
+
 =head2 login
 
 	# blocking
@@ -607,7 +625,6 @@ It also removes knowledge of your access token so that you can login again on yo
 	});
 
 This method calls the Salesforce L<Query method|http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_query.htm>.  It will keep grabbing and adding the records to your resultant array reference until there are no more records available to your query.
-On error, this method will emit an C<error> event. You should catch errors as the caller.
 
 =head1 ERROR HANDLING
 
