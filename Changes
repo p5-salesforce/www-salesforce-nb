@@ -1,5 +1,14 @@
 Revision history for Perl extension WWW::Salesforce.
 
+0.007
+	- added create method
+	- added describe method
+	- added limits method
+	- added retrieve method
+	- added search method
+	- fixed some blocking error handling
+	- fixed some docs
+
 0.006
 	- split logins out to the Connector class.
 	- allows for soap and oauth2 based logins

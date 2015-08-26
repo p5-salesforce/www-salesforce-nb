@@ -7,7 +7,7 @@ use strictures 2;
 use WWW::Salesforce::Connector;
 use namespace::clean;
 
-our $VERSION = '0.005';
+our $VERSION = '0.007';
 
 has '_access_token' => (is=>'rw',default=>'');
 has '_access_time' => (is=>'rw',default=>'0');
