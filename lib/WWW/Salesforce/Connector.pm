@@ -81,7 +81,6 @@ sub _login_soap {
 		'Accept-Charset' => 'UTF-8',
 		SOAPAction => '""',
 		Expect => '100-continue',
-		Host => Mojo::URL->new($sf->login_url)->host,
 	};
 	unless ( $cb ) {
 		my $tx = $sf->ua->post($url, $headers, $envelope);
