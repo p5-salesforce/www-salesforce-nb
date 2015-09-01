@@ -1,77 +1,115 @@
 package WWW::Salesforce::Connector;
 
-use Moo;
-use Mojo::URL;
-use Mojo::UserAgent;
-use Scalar::Util;
 use strictures 2;
-use namespace::clean;
+use Mojo::URL ();
+use Scalar::Util ();
 
-our @TYPES = qw(soap oauth2_up);
+use Moo::Role;
+use 5.010;
+has '_access_token' => (is=>'rw',default=>'');
+has '_access_time' => (is=>'rw',default=>'0');
+has '_instance_url' => (is => 'rw', default => '');
 
 # attempt a login to Salesforce to obtain a token
 sub login {
-	my ($self,$sf, $cb) = @_;
+	my ($self, $cb) = @_;
 	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
-	unless ( $sf->_login_required ) {
-		$sf->$cb(undef, $sf->_access_token) if $cb;
-		return $sf;
+	unless ( $self->_login_required ) {
+		$self->$cb(undef, $self->_access_token) if $cb;
+		return $self;
 	}
-	my $method = '_login_'.$sf->login_type();
-	return $self->$method($sf,$cb)
+	my $type = $self->login_type() || 'oauth2_up';
+	return $self->_login_soap($cb) if $type eq 'soap';
+	return $self->_login_oauth2_up($cb)
 }
 # log out of salesforce and invalidate the token we're using
 sub logout {
-	my ($self,$sf,$cb) = @_;
+	my ($self,$cb) = @_;
 	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
-	if ( $sf->_login_required ) {
+	if ( $self->_login_required ) {
 		# we don't need to logout
-		$sf->$cb(undef,1) if $cb;
-		return $sf;
+		$self->$cb(undef,1) if $cb;
+		return $self;
 	}
-	my $method = '_logout_'.$sf->login_type();
-	return $self->$method($sf,$cb)
+	my $headers = $self->_headers();
+	$headers->{content_type} = 'application/x-www-form-urlencoded';
+	my $url = Mojo::URL->new($self->_instance_url)->path("/services/oauth2/revoke");
+	#blocking request
+	unless ( $cb ) {
+		my $tx = $self->ua->post($url, $self->_headers(), form =>{token=>$self->_access_token});
+		die $self->_error($tx->error, $tx->res->json||undef) unless $tx->success;
+		$self->_instance_url(undef);
+		$self->_path(undef);
+		$self->_access_token(undef);
+		$self->_access_time(0);
+		$self->ua->cookie_jar->empty();
+		return $self;
+	}
+	# non-blocking request
+	$self->ua->post($url, $self->_headers(), form =>{token=>$self->_access_token}, sub {
+		my ($ua, $tx) = @_;
+		return $self->$cb($self->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+		$self->_instance_url(undef);
+		$self->_path(undef);
+		$self->_access_token(undef);
+		$self->_access_time(0);
+		$self->ua->cookie_jar->empty();
+		return $self->$cb(undef, 1);
+	});
+	return $self;
 }
 
 sub _login_oauth2_up {
-	my ( $self, $sf, $cb ) = @_;
-	my $url = Mojo::URL->new($sf->login_url)->path("/services/oauth2/token");
+	my ( $self, $cb ) = @_;
+	my $url = Mojo::URL->new($self->login_url)->path("/services/oauth2/token");
 	my $form = {
 		grant_type => 'password',
-		client_id => $sf->consumer_key,
-		client_secret => $sf->consumer_secret,
-		username => $sf->username,
-		password => $sf->password . $sf->pass_token,
+		client_id => $self->consumer_key,
+		client_secret => $self->consumer_secret,
+		username => $self->username,
+		password => $self->password . $self->pass_token,
 	};
 	# blocking request
 	unless ($cb) {
-		my $tx = $sf->ua->post($url, $sf->_headers(), form => $form);
-		die $sf->_error($tx->error, $tx->res->json) unless $tx->success;
+		my $tx = $self->ua->post($url, $self->_headers(), form => $form);
+		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
 		my $data = $tx->res->json;
-		$sf->_instance_url(Mojo::URL->new($data->{instance_url}));
-		$sf->_access_token($data->{access_token});
-		$sf->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
-		return $sf;
+		$self->_instance_url(Mojo::URL->new($data->{instance_url}));
+		$self->_access_token($data->{access_token});
+		$self->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
+		return $self;
 	}
 
 	# non-blocking request
-	$sf->ua->post($url, $sf->_headers(), form => $form, sub {
+	$self->ua->post($url, $self->_headers(), form => $form, sub {
 		my ($ua, $tx) = @_;
-		return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+		return $self->$cb($self->_error($tx->error, $tx->res->json),undef) unless $tx->success;
 		my $data = $tx->res->json;
-		$sf->_instance_url(Mojo::URL->new($data->{instance_url}));
-		$sf->_access_token($data->{access_token});
-		$sf->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
-		return $sf->$cb(undef, $sf->_access_token);
+		$self->_instance_url(Mojo::URL->new($data->{instance_url}));
+		$self->_access_token($data->{access_token});
+		$self->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
+		return $self->$cb(undef, $self->_access_token);
 	});
-	return $sf;
+	return $self;
+}
+
+# returns true (1) if login required, else undef
+sub _login_required {
+	my $self = shift;
+	if( $self->_access_token && $self->_instance_url && $self->_path ) {
+		if ( my $time = $self->_access_time ) {
+			return undef if ( int((time() - $time)/60) < 30 );
+		}
+	}
+	$self->ua->cookie_jar->empty();
+	return 1;
 }
 
 sub _login_soap {
-	my ( $self, $sf, $cb ) = @_;
-	my $url = Mojo::URL->new($sf->login_url)->path($sf->_path_soap);
-	my $user = $sf->username;
-	my $pass = $sf->password . $sf->pass_token;
+	my ( $self, $cb ) = @_;
+	my $url = Mojo::URL->new($self->login_url)->path($self->_path_soap);
+	my $user = $self->username;
+	my $pass = $self->password . $self->pass_token;
 	my $envelope = qq(<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:partner.soap.sforce.com"><soapenv:Body><urn:login><urn:username>$user</urn:username><urn:password>$pass</urn:password></urn:login></soapenv:Body></soapenv:Envelope>);
 	my $headers = {
 		Accept => 'text/xml',
@@ -81,53 +119,30 @@ sub _login_soap {
 		'Accept-Charset' => 'UTF-8',
 		SOAPAction => '""',
 		Expect => '100-continue',
+		# Host => Mojo::URL->new($self->login_url)->host,
 	};
 	unless ( $cb ) {
-		my $tx = $sf->ua->post($url, $headers, $envelope);
+		my $tx = $self->ua->post($url, $headers, $envelope);
 		die $self->_soap_error($tx->error, $tx->res->dom) unless $tx->success;
 		my $data = $self->_soap_parse_login_response($tx->res->dom);
-		$sf->_instance_url(Mojo::URL->new($data->{serverUrl}));
-		$sf->_access_token($data->{sessionId});
-		$sf->_access_time(time);
-		return $sf;
+		use Data::Dumper;
+		say Dumper $data;
+		$self->_instance_url(Mojo::URL->new($data->{serverUrl}));
+		$self->_access_token($data->{sessionId});
+		$self->_access_time(time);
+		return $self;
 	}
 	# non-blocking request
-	$sf->ua->post($url,$headers, $envelope, sub {
+	$self->ua->post($url,$headers, $envelope, sub {
 		my ($ua, $tx) = @_;
-		return $sf->$cb($sf->_soap_error($tx->error, $tx->res->dom),undef) unless $tx->success;
+		return $self->$cb($self->_soap_error($tx->error, $tx->res->dom),undef) unless $tx->success;
 		my $data = $self->_soap_parse_login_response($tx->res->dom);
-		$sf->_instance_url(Mojo::URL->new($data->{serverUrl}));
-		$sf->_access_token($data->{sessionId});
-		$sf->_access_time(time); #convert milliseconds to seconds
-		return $sf->$cb(undef, $sf->_access_token);
+		$self->_instance_url(Mojo::URL->new($data->{serverUrl}));
+		$self->_access_token($data->{sessionId});
+		$self->_access_time(time); #convert milliseconds to seconds
+		return $self->$cb(undef, $self->_access_token);
 	});
-	return $sf;
-}
-
-sub _logout_oauth2_up {
-	my ($self, $sf, $cb) = @_;
-	my $url = Mojo::URL->new($sf->_instance_url)->path("/services/oauth2/revoke");
-	#blocking request
-	unless ( $cb ) {
-		my $tx = $sf->ua->post($url, $sf->_headers(), form =>{token=>$sf->_access_token});
-		die $sf->_error($tx->error, $tx->res->json) unless $tx->success;
-		$sf->_instance_url(undef);
-		$sf->_path(undef);
-		$sf->_access_token(undef);
-		$sf->_access_time(0);
-		return $sf;
-	}
-	# non-blocking request
-	$sf->ua->post($url, $sf->_headers(), form =>{token=>$sf->_access_token}, sub {
-		my ($ua, $tx) = @_;
-		return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
-		$sf->_instance_url(undef);
-		$sf->_path(undef);
-		$sf->_access_token(undef);
-		$sf->_access_time(0);
-		return $sf->$cb(undef, 1);
-	});
-	return $sf;
+	return $self;
 }
 
 sub _soap_error {
@@ -139,20 +154,32 @@ sub _soap_error {
 	return '' unless $message;
 	# no need to traverse the data if there's no error.
 	if ( $data && Scalar::Util::blessed($data) && $data->isa('Mojo::DOM') ) {
-		$message .= sprintf("%s: %s", $data->at('faultcode')->text()||'',$data->at('faultstring')->text()||'');
+		if ( $data->at('faultcode') && $data->at('faultstring') ) {
+			$message .= sprintf("%s: %s", $data->at('faultcode')->text(),$data->at('faultstring')->text());
+		}
 	}
 	return $message;
 }
+
 sub _soap_parse_login_response {
 	my ( $self, $dom ) = @_;
 	my $info = {userInfo=>{},};
-	$dom->at('userInfo')->child_nodes->each(sub {
+	$dom->at('loginResponse > result')->child_nodes->each(sub {
 		my $element = shift;
-		$info->{userInfo}{$element->tag()} = $element->text() || '';
-	});
-	$dom->at('userInfo')->remove;
-	$dom->at('result')->child_nodes->each(sub {
-		$info->{$_[0]->tag()}=$_[0]->text()||'';
+		my $tag = $element->tag();
+		return unless $tag;
+		my $count = 0;
+		$element->child_nodes->each(sub {
+			my $uinfo = shift;
+			my $utag = $uinfo->tag();
+			return unless $utag;
+			$count++;
+			$info->{$tag} //= {};
+			$info->{$tag}{$utag} = $uinfo->text() || '';
+		});
+		unless ( $count ) {
+			$info->{$tag} = $element->text() || '';
+		}
 	});
 	return $info;
 }
@@ -162,7 +189,7 @@ sub _soap_parse_login_response {
 
 =head1 NAME
 
-WWW::Salesforce::Connector - Handle your connection to the Salesforce API
+WWW::Salesforce::Connector - A role to handle some of the implementation of WWW::Salesforce
 
 =head1 SYNOPSIS
 
@@ -224,7 +251,7 @@ WWW::Salesforce::Connector - Handle your connection to the Salesforce API
 
 =head1 DESCRIPTION
 
-L<WWW::Salesforce::Connector> is used by L<WWW::Salesforce> to handle your connection via the method of your choice.
+L<WWW::Salesforce::Connector> is a L<Moo::Role> that implements the C<login> and C<logout> methods.
 
 =head1 ATTRIBUTES
 

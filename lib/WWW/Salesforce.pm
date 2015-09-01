@@ -4,14 +4,11 @@ use Moo;
 use Mojo::URL;
 use Mojo::UserAgent;
 use strictures 2;
-use WWW::Salesforce::Connector;
 use namespace::clean;
 
-our $VERSION = '0.007';
+with 'WWW::Salesforce::Connector';
 
-has '_access_token' => (is=>'rw',default=>'');
-has '_access_time' => (is=>'rw',default=>'0');
-has '_instance_url' => (is => 'rw', default => '' );
+our $VERSION = '0.008';
 
 # salesforce login attributes
 has consumer_key => (is =>'rw',default=>'');
@@ -21,7 +18,7 @@ has login_type => (
 	required => 1,
 	isa => sub {
 		my $val = shift;
-		die "Invalid login_type requested." unless $val && grep {/^$val$/} @WWW::Salesforce::Connector::TYPES;
+		die "Invalid login_type requested." unless $val && grep {$val eq $_} qw(soap oauth2_up);
 	},
 	default => 'oauth2_up',
 );
@@ -36,9 +33,6 @@ has version => (
 	required => 1,
 	default => '34.0',
 );
-
-sub login {WWW::Salesforce::Connector->login(@_)}
-sub logout {WWW::Salesforce::Connector->logout(@_)}
 
 sub create {
 	my ($self, $type, $params, $cb) = @_;
@@ -313,17 +307,6 @@ sub _path {
 sub _path_soap {
 	my $self = shift;
 	return '/services/Soap/u/'.$self->version.'/';
-}
-# returns true (1) if login required, else undef
-sub _login_required {
-	my $self = shift;
-	if( $self->_access_token && $self->_instance_url && $self->_path ) {
-		if ( my $time = $self->_access_time ) {
-			return undef if ( int((time() - $time)/60) < 30 );
-		}
-	}
-	$self->ua->cookie_jar->empty();
-	return 1;
 }
 
 1;

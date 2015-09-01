@@ -7,6 +7,7 @@ MANIFEST.SKIP
 LICENSE
 INSTALL
 README.md
+t/lib/mock.pl
 t/00-blocking.t
 t/01-non-blocking.t
 t/pod-coverage.t
