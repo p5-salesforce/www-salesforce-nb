@@ -125,8 +125,6 @@ sub _login_soap {
 		my $tx = $self->ua->post($url, $headers, $envelope);
 		die $self->_soap_error($tx->error, $tx->res->dom) unless $tx->success;
 		my $data = $self->_soap_parse_login_response($tx->res->dom);
-		use Data::Dumper;
-		say Dumper $data;
 		$self->_instance_url(Mojo::URL->new($data->{serverUrl}));
 		$self->_access_token($data->{sessionId});
 		$self->_access_time(time);
