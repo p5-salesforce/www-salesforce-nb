@@ -8,6 +8,15 @@ BEGIN {
 # Silence
 app->log->level('fatal');
 get '/' => {text => 'works!'};
+post '/services/data/v33.0/sobjects/:type' => sub {
+	my $c = shift;
+	my $type = $c->stash('type');
+	my $params = $c->req->json;
+	return $c->render(json=>{success=>'false',id=>undef,errors=>['bad object']},status=>500) unless $type;
+	return $c->render(json=>{success=>'false',id=>undef,errors=>['no params']},status=>500) unless $params && ref($params) eq 'HASH';
+	return $c->render(json=>{success=>'false',id=>undef,errors=>['bad object']}) unless $type eq 'Account';
+	return $c->render(json=>{success=>'true',id=>'01t500000016RuaAAE',errors=>[]});
+};
 get '/services/data/v33.0/query' => sub {
 	my $c = shift;
 	my $query = $c->param('q');

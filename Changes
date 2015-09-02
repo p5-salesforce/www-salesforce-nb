@@ -4,6 +4,7 @@ Revision history for Perl extension WWW::Salesforce.
 	- moved the test mock server into its own file
 	- made the Connector a role
 	- removed a superfluous header for SOAP calls
+	- added tests for the blocking create method
 
 0.007
 	- added create method
