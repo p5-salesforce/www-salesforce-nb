@@ -289,10 +289,10 @@ This method calls the Salesforce [Limits method](https://developer.salesforce.co
 $sf = $sf->login(); # allows for method-chaining
 
 ## non-blocking
-$sf->login(
+$sf->login( sub {
 	my ($sf, $token) = @_;
 	say "Our auth token is: $token";
-);
+});
 ```
 
 This method will go through the [Salesforce Username-Password OAuth Authentication Flow](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm) process if it needs to.
