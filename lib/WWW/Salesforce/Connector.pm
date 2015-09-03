@@ -2,6 +2,7 @@ package WWW::Salesforce::Connector;
 
 use strictures 2;
 use Mojo::URL ();
+use Mojo::Util qw(xml_escape);
 use Scalar::Util ();
 
 use Moo::Role;
@@ -108,9 +109,18 @@ sub _login_required {
 sub _login_soap {
 	my ( $self, $cb ) = @_;
 	my $url = Mojo::URL->new($self->login_url)->path($self->_path_soap);
-	my $user = $self->username;
-	my $pass = $self->password . $self->pass_token;
-	my $envelope = qq(<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:partner.soap.sforce.com"><soapenv:Body><urn:login><urn:username>$user</urn:username><urn:password>$pass</urn:password></urn:login></soapenv:Body></soapenv:Envelope>);
+	my $envelope = join '',(
+		'<?xml version="1.0" encoding="utf-8"?>',
+		'<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:partner.soap.sforce.com">',
+			'<soapenv:Body>',
+				'<urn:login>',
+					'<urn:username>',xml_escape($self->username || ''),'</urn:username>',
+					'<urn:password>',xml_escape($self->password . $self->pass_token),'</urn:password>',
+				'</urn:login>',
+			'</soapenv:Body>',
+		'</soapenv:Envelope>',
+	);
+
 	my $headers = {
 		Accept => 'text/xml',
 		'Content-Type' => 'text/xml; charset=utf-8',
@@ -119,7 +129,6 @@ sub _login_soap {
 		'Accept-Charset' => 'UTF-8',
 		SOAPAction => '""',
 		Expect => '100-continue',
-		# Host => Mojo::URL->new($self->login_url)->host,
 	};
 	unless ( $cb ) {
 		my $tx = $self->ua->post($url, $headers, $envelope);
