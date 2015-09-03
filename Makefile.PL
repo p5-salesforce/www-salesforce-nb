@@ -5,19 +5,26 @@ use ExtUtils::MakeMaker;
 
 WriteMakefile(
 	NAME => 'WWW::Salesforce',
-	AUTHOR => q{Chase Whitener <cwhitener@gmail.com>},
 	VERSION_FROM => 'lib/WWW/Salesforce.pm',
-	ABSTRACT_FROM => 'lib/WWW/Salesforce.pm',
+	ABSTRACT => 'A non-blocking Perl Salesforce client',
+	AUTHOR => q{Chase Whitener <cwhitener@gmail.com>},
 	LICENSE => 'artistic_2',
 	META_MERGE => {
-		requires  => {perl => '5.010001'},
-		resources => {
-			license    => 'http://www.opensource.org/licenses/artistic-license-2.0',
-			homepage => 'https://github.com/genio/www-salesforce-nb',
-			bugtracker => 'https://github.com/genio/www-salesforce-nb/issues',
-			repository => 'https://github.com/genio/www-salesforce-nb.git',
-		},
+		dynamic_config => 0,
+		'meta-spec' => {version=>2},
 		no_index => {directory => ['t']}
+		prereqs => {runtime => {requires => {perl => '5.010001'}}},
+		resources => {
+			bugtracker => {web=>'https://github.com/genio/www-salesforce-nb/issues'},
+			homepage => 'https://github.com/genio/www-salesforce-nb',
+			license => ['http://www.opensource.org/licenses/artistic-license-2.0'],
+			repository => {
+				type => 'git',
+				url => 'https://github.com/genio/www-salesforce-nb.git',
+				web => 'https://github.com/genio/www-salesforce-nb',
+			},
+			X_IRC => 'irc://irc.perl.org/#perl',
+		},
 	},
 	BUILD_REQUIRES => {
 		'Test::More' => 0,

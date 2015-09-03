@@ -109,18 +109,6 @@ sub _login_required {
 sub _login_soap {
 	my ( $self, $cb ) = @_;
 	my $url = Mojo::URL->new($self->login_url)->path($self->_path_soap);
-	my $envelope = join '',(
-		'<?xml version="1.0" encoding="utf-8"?>',
-		'<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:partner.soap.sforce.com">',
-			'<soapenv:Body>',
-				'<urn:login>',
-					'<urn:username>',xml_escape($self->username || ''),'</urn:username>',
-					'<urn:password>',xml_escape($self->password . $self->pass_token),'</urn:password>',
-				'</urn:login>',
-			'</soapenv:Body>',
-		'</soapenv:Envelope>',
-	);
-
 	my $headers = {
 		Accept => 'text/xml',
 		'Content-Type' => 'text/xml; charset=utf-8',
@@ -130,6 +118,18 @@ sub _login_soap {
 		SOAPAction => '""',
 		Expect => '100-continue',
 	};
+	my $envelope = join '',(
+		'<?xml version="1.0" encoding="utf-8"?>',
+		'<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:partner.soap.sforce.com">',
+			'<soapenv:Body>',
+				'<urn:login>',
+					'<urn:username>',xml_escape($self->username || ''),'</urn:username>',
+					'<urn:password>',xml_escape($self->password || ''),xml_escape($self->pass_token || ''),'</urn:password>',
+				'</urn:login>',
+			'</soapenv:Body>',
+		'</soapenv:Envelope>',
+	);
+
 	unless ( $cb ) {
 		my $tx = $self->ua->post($url, $headers, $envelope);
 		die $self->_soap_error($tx->error, $tx->res->dom) unless $tx->success;
