@@ -12,7 +12,7 @@ WriteMakefile(
 	META_MERGE => {
 		dynamic_config => 0,
 		'meta-spec' => {version=>2},
-		no_index => {directory => ['t']}
+		no_index => {directory => ['t']},
 		prereqs => {runtime => {requires => {perl => '5.010001'}}},
 		resources => {
 			bugtracker => {web=>'https://github.com/genio/www-salesforce-nb/issues'},
