@@ -94,8 +94,13 @@ Mojo::IOLoop->delay(
 
 Creation of a new [WWW::Salesforce](https://github.com/genio/www-salesforce-nb/) instance will not actually hit the server.  The first communication with the [Salesforce](http://www.salesforce.com/) API occurs when you specifically call the ```login``` method or when you make another call.
 
-All API calls using this library will first make sure you are properly logged in using [Session ID Authorization](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/quickstart_oauth.htm), but more specifically, the [Salesforce Username-Password OAuth Authentication Flow](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_understanding_username_password_oauth_flow.htm) to get your access token.
-It will also make sure that you have grabbed the [latest API version](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_versions.htm) and use that version for all subsequent API method calls.
+All API calls using this library will first make sure you are properly logged in.
+
+* ```oauth2_up``` OAuth2 using the username and password (up) method:
+	* [Session ID Authorization](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/quickstart_oauth.htm)
+	* [Salesforce Username-Password OAuth Authentication Flow](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_understanding_username_password_oauth_flow.htm)
+* ```soap``` Alternately, you can use the soap login method:
+	* [Salesforce SOAP-based username and password login flow](https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/sforce_api_calls_login.htm)
 
 ## ATTRIBUTES
 

@@ -381,8 +381,19 @@ L<WWW::Salesforce> allows us to connect to L<Salesforce|http://www.salesforce.co
 
 Creation of a new L<WWW::Salesforce> instance will not actually hit the server.  The first communication with the L<Salesforce|http://www.salesforce.com/> API occurs when you specifically call the C<login> method or when you make another call.
 
-All API calls using this library will first make sure you are properly logged in using L<Session ID Authorization|http://www.salesforce.com/us/developer/docs/api_rest/Content/quickstart_oauth.htm>, but more specifically, the L<Salesforce Username-Password OAuth Authentication Flow|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_understanding_username_password_oauth_flow.htm> to get your access token.
-It will also make sure that you have grabbed the L<latest API version|http://www.salesforce.com/us/developer/docs/api_rest/Content/dome_versions.htm> and use that version for all subsequent API method calls.
+All API calls using this library will first make sure you are properly logged in.
+
+=over
+
+=item oauth2_up
+
+This is the default: OAuth2 using the username and password (up) method: L<Session ID Authorization|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/quickstart_oauth.htm> L<Salesforce Username-Password OAuth Authentication Flow|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_understanding_username_password_oauth_flow.htm>
+
+=item soap
+
+Alternately, you can use the soap login method: L<Salesforce SOAP-based username and password login flow|https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/sforce_api_calls_login.htm>
+
+=back
 
 =head1 ATTRIBUTES
 
