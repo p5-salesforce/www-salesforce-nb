@@ -4,12 +4,14 @@ use strictures 2;
 use Mojo::URL ();
 use Mojo::Util qw(xml_escape);
 use Scalar::Util ();
+use WWW::Salesforce::SOAP;
 
 use Moo::Role;
 use 5.010;
 has '_access_token' => (is=>'rw',default=>'');
 has '_access_time' => (is=>'rw',default=>'0');
 has '_instance_url' => (is => 'rw', default => '');
+has '_soap' => (is => 'ro',required => 1,default => sub {WWW::Salesforce::SOAP->new();},);
 
 # attempt a login to Salesforce to obtain a token
 sub login {
@@ -108,42 +110,24 @@ sub _login_required {
 
 sub _login_soap {
 	my ( $self, $cb ) = @_;
-	my $url = Mojo::URL->new($self->login_url)->path($self->_path_soap);
-	my $headers = {
-		Accept => 'text/xml',
-		'Content-Type' => 'text/xml; charset=utf-8',
-		DNT => 1,
-		'Sforce-Query-Options' => 'batchSize=2000',
-		'Accept-Charset' => 'UTF-8',
-		SOAPAction => '""',
-		Expect => '100-continue',
-	};
-	my $envelope = join '',(
-		'<?xml version="1.0" encoding="utf-8"?>',
-		'<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:partner.soap.sforce.com">',
-			'<soapenv:Body>',
-				'<urn:login>',
-					'<urn:username>',xml_escape($self->username || ''),'</urn:username>',
-					'<urn:password>',xml_escape($self->password || ''),xml_escape($self->pass_token || ''),'</urn:password>',
-				'</urn:login>',
-			'</soapenv:Body>',
-		'</soapenv:Envelope>',
-	);
+	my $url = Mojo::URL->new($self->login_url)->path($self->_path('soap'));
+	my $envelope = $self->_soap->envelope_login($self->username, $self->password, $self->pass_token)->to_string;
 
 	unless ( $cb ) {
-		my $tx = $self->ua->post($url, $headers, $envelope);
-		die $self->_soap_error($tx->error, $tx->res->dom) unless $tx->success;
-		my $data = $self->_soap_parse_login_response($tx->res->dom);
+		my $tx = $self->ua->post($url, $self->_headers('soap'), $envelope);
+		die $self->_soap->error_string($tx->error, $tx->res->dom) unless $tx->success;
+		my $data = $self->_soap->response_login($tx->res->dom);
 		$self->_instance_url(Mojo::URL->new($data->{serverUrl}));
 		$self->_access_token($data->{sessionId});
 		$self->_access_time(time);
 		return $self;
 	}
 	# non-blocking request
-	$self->ua->post($url,$headers, $envelope, sub {
+	$self->ua->post($url,$self->_headers('soap'), $envelope, sub {
 		my ($ua, $tx) = @_;
-		return $self->$cb($self->_soap_error($tx->error, $tx->res->dom),undef) unless $tx->success;
-		my $data = $self->_soap_parse_login_response($tx->res->dom);
+		#use Data::Dumper; say Dumper $tx->res; exit(0);
+		return $self->$cb($self->_soap->error_string($tx->error, $tx->res->dom),undef) unless $tx->success;
+		my $data = $self->_soap->response_login($tx->res->dom);
 		$self->_instance_url(Mojo::URL->new($data->{serverUrl}));
 		$self->_access_token($data->{sessionId});
 		$self->_access_time(time); #convert milliseconds to seconds
@@ -152,44 +136,7 @@ sub _login_soap {
 	return $self;
 }
 
-sub _soap_error {
-	my ( $self, $error, $data ) = @_;
-	my $message = '';
-	if ( $error && ref($error) eq 'HASH' ) {
-		$message .= sprintf("%s %s: ", $error->{code} || "500", $error->{message} || '');
-	}
-	return '' unless $message;
-	# no need to traverse the data if there's no error.
-	if ( $data && Scalar::Util::blessed($data) && $data->isa('Mojo::DOM') ) {
-		if ( $data->at('faultcode') && $data->at('faultstring') ) {
-			$message .= sprintf("%s: %s", $data->at('faultcode')->text(),$data->at('faultstring')->text());
-		}
-	}
-	return $message;
-}
 
-sub _soap_parse_login_response {
-	my ( $self, $dom ) = @_;
-	my $info = {userInfo=>{},};
-	$dom->at('loginResponse > result')->child_nodes->each(sub {
-		my $element = shift;
-		my $tag = $element->tag();
-		return unless $tag;
-		my $count = 0;
-		$element->child_nodes->each(sub {
-			my $uinfo = shift;
-			my $utag = $uinfo->tag();
-			return unless $utag;
-			$count++;
-			$info->{$tag} //= {};
-			$info->{$tag}{$utag} = $uinfo->text() || '';
-		});
-		unless ( $count ) {
-			$info->{$tag} = $element->text() || '';
-		}
-	});
-	return $info;
-}
 1;
 
 =encoding utf8

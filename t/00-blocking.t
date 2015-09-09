@@ -41,7 +41,7 @@ is $sf->ua->get('/')->res->body, 'works!', 'UA: right body content';
 
 # Test API Path gathering
 is($sf->_path(),'/services/data/v33.0/','api_path: got the correct latest path');
-is($sf->_path_soap(),'/services/Soap/u/33.0/','api_path: got the correct soap path');
+is($sf->_path('soap'),'/services/Soap/u/33.0/','api_path: got the correct soap path');
 
 # test a bad login
 {

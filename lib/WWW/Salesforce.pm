@@ -8,7 +8,7 @@ use namespace::clean;
 
 with 'WWW::Salesforce::Connector';
 
-our $VERSION = '0.008';
+our $VERSION = '0.009';
 
 # salesforce login attributes
 has consumer_key => (is =>'rw',default=>'');
@@ -288,25 +288,33 @@ sub _error {
 
 # Get the headers we need to send each time
 sub _headers {
-	my $self = shift;
+	my ($self, $type) = @_;
 	my $header = {
 		Accept => 'application/json',
 		DNT => 1,
 		'Sforce-Query-Options' => 'batchSize=2000',
 		'Accept-Charset' => 'UTF-8',
 	};
-	return $header unless my $token = $self->_access_token;
-	$header->{'Authorization'} = "Bearer $token";
+	if ( $type && $type eq 'soap' ) {
+		$header->{Accept} = 'text/xml';
+		$header->{'Content-Type'} = 'text/xml; charset=utf-8';
+		$header->{SOAPAction} = '""';
+		$header->{Expect} = '100-continue';
+		my $url = Mojo::URL->new($self->_instance_url || $self->login_url || '');
+		$header->{Host} = $url->host if $url->host;
+	}
+	if ( my $token = $self->_access_token ) {
+		$header->{'Authorization'} = "Bearer $token";
+	}
 	return $header;
 }
 
 sub _path {
-	my $self = shift;
+	my ($self, $type) = @_;
+	if ( $type && $type eq 'soap' ) {
+		return '/services/Soap/u/'.$self->version.'/';
+	}
 	return '/services/data/v'.$self->version.'/';
-}
-sub _path_soap {
-	my $self = shift;
-	return '/services/Soap/u/'.$self->version.'/';
 }
 
 1;
