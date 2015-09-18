@@ -1,6 +1,7 @@
 use Mojo::Base -strict;
 use Test::More;
 use Mojo::JSON;
+use Mojo::IOLoop::Delay;
 use Data::Dumper;
 use Try::Tiny;
 
@@ -56,7 +57,7 @@ can_ok($sf, qw(create insert) );
     like( $error, qr/^Empty SObjects are not allowed/, 'create: no objects error message');
 }
 
-# single object creation tests
+# object creation tests
 my $expected_result = {success=>'true',id=>'01t500000016RuaAAE',errors=>[]};
 try {
     #type as top-level hash key
@@ -82,7 +83,7 @@ try {
 } catch {
 	BAIL_OUT("Something went wrong in create: $_");
 };
-# single object insertion tests
+# object insertion tests
 try {
     #type as top-level hash key
     my $res = $sf->insert({type=>'Account',Name=>'test',});
@@ -107,5 +108,39 @@ try {
 } catch {
 	BAIL_OUT("Something went wrong in single insert: $_");
 };
+
+# non-blocking test
+{
+	Mojo::IOLoop::Delay->new()->steps(
+		sub {
+			my $delay = shift;
+			$sf->create('badObject',{empty=>'stuff'}, $delay->begin(0));
+		},
+		sub {
+			my ($delay, $sf, $err, $res) = @_;
+			is($err, undef, 'create_nb: correctly got no fault for an errored call response');
+			isa_ok($res, 'HASH', 'create_nb: got a hashref response');
+			is_deeply($res, {id=>undef,success=>'false',errors=>['bad object']}, "create_nb: got the right call error response");
+		}
+	)->catch(sub {
+		shift->ioloop->stop;
+		BAIL_OUT("Something went wrong in create: ".pop);
+	})->wait;
+	Mojo::IOLoop::Delay->new()->steps(
+		sub {
+			my $delay = shift;
+			$sf->create({type=>'Account',Name=>'test',}, $delay->begin(0));
+		},
+		sub {
+			my ($delay, $sf, $err, $res) = @_;
+			is($err, undef, 'create_nb: correctly got no fault');
+			isa_ok($res, 'HASH', 'create_nb: got a hashref response');
+			is_deeply($res, $expected_result, "create_nb: got the right result");
+		}
+	)->catch(sub {
+		shift->ioloop->stop;
+		BAIL_OUT("Something went wrong in create: ".pop);
+	})->wait;
+}
 
 done_testing;
