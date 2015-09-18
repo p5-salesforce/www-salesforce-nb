@@ -29,7 +29,6 @@ my $sf = try {
 };
 isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
 
-# Test version gathering
-is($sf->_path(),'/services/data/v33.0/','_path: got the correct path');
+can_ok($sf, qw(describe describe_sobject describe_global) );
 
-done_testing();
+done_testing;

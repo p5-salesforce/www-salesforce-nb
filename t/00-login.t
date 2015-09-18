@@ -89,30 +89,6 @@ try {
 	BAIL_OUT("Unable to login and out properly with soap: $_");
 };
 
-# Test the create method
-{
-	my $res = try {
-		my $acct = $sf->create('Account', {Name=>'test',});
-		return "Unknown result" unless ( $acct && ref($acct) eq 'HASH' );
-		return $acct->{id} if ( $acct->{success} && $acct->{id} );
-		return join(', ', @{$acct->{errors}}) if ref($acct->{errors}) eq 'ARRAY';
-		return "unknown error";
-	} catch {
-		$_;
-	};
-	is( $res, '01t500000016RuaAAE', 'create: got the proper newly created ID');
-	my $error = try {
-		my $obj = $sf->create('badObject', {empty=>'stuff'});
-		return "Unknown result" unless ( $obj && ref($obj) eq 'HASH' );
-		return $obj->{id} if ( $obj->{success} && $obj->{id} );
-		return join(', ', @{$obj->{errors}}) if ref($obj->{errors}) eq 'ARRAY';
-		return "unknown error";
-	} catch {
-		$_;
-	};
-	like( $error, qr/bad object/, 'create: got the right error message');
-}
-
 # Test a simple query
 {
 	my $res = try {
@@ -133,7 +109,5 @@ try {
 	};
 	like($error, qr/^401 Unauthorized: foo: what?!?/, 'query: got proper error message');
 }
-
-
 
 done_testing();

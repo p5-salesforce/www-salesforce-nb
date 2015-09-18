@@ -23,6 +23,7 @@ has login_type => (
 	default => 'oauth2_up',
 );
 has login_url => (is => 'rw', required=>1, default => sub {Mojo::URL->new('https://login.salesforce.com/') } );
+has max_requests => (is=>'rw',isa =>sub{die "Must be an integer" unless $_[0] =~ /^[0-9]+$/},required => 1,default => '10',);
 has password => (is =>'rw',default=>'');
 has pass_token => (is =>'rw',default=>'');
 has ua => (is => 'ro',required => 1,default => sub {Mojo::UserAgent->new(inactivity_timeout=>50);},);
@@ -34,18 +35,27 @@ has version => (
 	default => '34.0',
 );
 
+sub insert { goto &create }
 sub create {
-	my ($self, $type, $params, $cb) = @_;
-	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
-
-	unless ($type) {
-		die 'You cannot create an object of unknown type' unless $cb;
-		$self->$cb('You cannot create an object of unknown type',undef);
+	my $self = shift;
+	my $cb = ($_[-1] && ref($_[-1]) && ref($_[-1]) eq 'CODE')? pop: undef;
+	my $type = ($_[0] && !ref($_[0]))?shift:undef;
+	# The only remaining thing on the call stack should be the hashref SObject
+	my $object = ($_[0] && ref($_[0]) && ref($_[0]) eq 'HASH')? shift: {};
+	$type ||= $object->{attributes}{type} || $object->{type} || undef;
+	$type = undef unless $type && !ref($type);
+	delete($object->{Id});
+	delete($object->{type});
+	delete($object->{attributes});
+	# we have now cleaned up the object and hopefully have a type.
+	unless ( scalar(keys(%$object)) ) {
+		die "Empty SObjects are not allowed." unless $cb;
+		$self->$cb("Empty SObjects are not allowed.",undef);
 		return $self;
 	}
-	unless ($params && ref($params) eq 'HASH') {
-		die 'You must supply a hashref representation of the object to create.' unless $cb;
-		$self->$cb('You must supply a hashref representation of the object to create.',undef);
+	unless ( $type ) {
+		die "No SObject Type defined." unless $cb;
+		$self->$cb("No SObject Type defined.", undef);
 		return $self;
 	}
 
@@ -53,7 +63,7 @@ sub create {
 	unless ( $cb ) {
 		$self->login();
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type");
-		my $tx = $self->ua->post($url, $self->_headers(), json => $params);
+		my $tx = $self->ua->post($url, $self->_headers(), json => $object);
 		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
 		return $tx->res->json;
 	}
@@ -64,7 +74,7 @@ sub create {
 		return $sf->$cb($err,[]) if $err;
 		return $sf->$cb('No login token',[]) unless $token;
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$type");
-		$sf->ua->post($url, $sf->_headers(), json=>$params,sub {
+		$sf->ua->post($url, $sf->_headers(), json=>$object,sub {
 			my ($ua, $tx) = @_;
 			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
 			return $sf->$cb(undef,$tx->res->json);
@@ -74,6 +84,7 @@ sub create {
 }
 
 # describe an object
+sub describe_sobject { goto &describe }
 sub describe {
 	my ($self, $object, $cb) = @_;
 	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
@@ -98,6 +109,34 @@ sub describe {
 		return $sf->$cb($err,[]) if $err;
 		return $sf->$cb('No login token',[]) unless $token;
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$object/describe");
+		$sf->ua->get($url, $sf->_headers(), sub {
+			my ($ua, $tx) = @_;
+			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb(undef,$tx->res->json);
+		});
+	});
+	return $self;
+}
+
+sub describe_global {
+	my ($self, $cb) = @_;
+	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
+
+	# blocking request
+	unless ( $cb ) {
+		$self->login(); # handles renewing the auth token if necessary
+		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects");
+		my $tx = $self->ua->get($url, $self->_headers());
+		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		return $tx->res->json;
+	}
+
+	# non-blocking request
+	$self->login(sub {
+		my ( $sf, $err, $token ) = @_;
+		return $sf->$cb($err,[]) if $err;
+		return $sf->$cb('No login token',[]) unless $token;
+		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects");
 		$sf->ua->get($url, $sf->_headers(), sub {
 			my ($ua, $tx) = @_;
 			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
@@ -504,6 +543,10 @@ Tell us what API version you'd like to use.  Leave off the C<v> from the version
 
 L<WWW::Salesforce> makes the following methods available.
 
+=head2 insert
+
+Synonym for C<create>
+
 =head2 create
 
 	# blocking
@@ -534,6 +577,10 @@ L<WWW::Salesforce> makes the following methods available.
 This method calls the Salesforce L<Create method|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_sobject_create.htm>.
 On a successful transaction, a JSON response is returned with three fields (C<id>, C<success>, and C<errors>).  You should check that response to see if your creation attempt actually succeeded.
 
+=head2 describe_sobject
+
+Synonym for C<describe>
+
 =head2 describe
 
 # blocking
@@ -553,6 +600,26 @@ $sf->describe('Account', sub {
 
 This method calls the Salesforce L<Describe method|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_sobject_describe.htm>.
 On a successful transaction, a JSON response is returned with data full of useful information about the SObject.
+
+=head2 describe_global
+
+# blocking
+try {
+	my $res = $sf->describe_global();
+	say Dumper $res; #all the info
+} catch {
+	die "Errors: $_";
+};
+
+# non-blocking
+$sf->describe_global(sub {
+	my ($sf, $err, $res) = @_;
+	die "Got an error trying to describe_global: $err" if $err;
+	say Dumper $res; #all the info
+});
+
+This method calls the Salesforce L<Describe Global method|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_describeGlobal.htm>.
+On a successful transaction, a JSON response is returned with data full of useful information about the available objects and their metadata for your organization’s data.
 
 =head2 limits
 
