@@ -1,14 +1,38 @@
 language: perl
 perl:
-  - "5.20"
-  - "5.18"
-  - "5.16"
-  - "5.14"
-  - "5.12"
-  - "5.10"
+  - blead
+  - blead-thr
+  - dev
+  - dev-thr
+  - 5.22.0
+  - 5.22.0-thr
+  - 5.20.2
+  - 5.20.2-thr
+  - 5.18.3
+  - 5.18.3-thr
+  - 5.16.3
+  - 5.16.3-thr
+  - 5.14.4
+  - 5.14.4-thr
+  - 5.12.5
+  - 5.12.5-thr
+  - 5.10.1
+  - 5.10.1-thr
+matrix:
+  allow_failures:
+    - perl: blead
+    - perl: blead-thr
 env:
   - "HARNESS_OPTIONS=j9 TEST_POD=1"
+before_install:
+  - git clone git://github.com/travis-perl/helpers ~/travis-perl-helpers
+  - source ~/travis-perl-helpers/init
+  - build-perl
+  - perl -V
+  - build-dist
+  - cd $BUILD_DIR
 install:
+  - cpan-install --deps
   - "cpanm -n Test::More Test::Pod Test::Pod::Coverage"
   - "cpanm -n --installdeps ."
 sudo: false
