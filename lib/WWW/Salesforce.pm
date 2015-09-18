@@ -312,7 +312,7 @@ sub retrieve {
 # describe an object
 sub search {
 	my ($self, $sosl, $cb) = @_;
-	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
+	$cb = ($cb && && ref($cb) && ref($cb) eq 'CODE')? $cb: undef;
 	unless ($sosl) {
 		die 'An SOSL statement is required to search' unless $cb;
 		$self->$cb('An SOSL statement is required to search',undef);
@@ -343,6 +343,64 @@ sub search {
 		});
 	});
 	return $self;
+}
+
+sub update {
+	my $self = shift;
+	my $type = ($_[0] && !ref($_[0]))?shift:undef;
+	my $id = ($_[0] && !ref($_[0]))?shift:undef;
+	my $object = ($_[0] && ref($_[0]) && ref($_[0]) eq 'HASH')? shift: {};
+	my $cb = ($_[-1] && ref($_[-1]) && ref($_[-1]) eq 'CODE')? pop: undef;
+
+	$id ||= $object->{Id} || undef;
+	$id = undef unless $id && !ref($id) && $id =~ /^[a-zA-Z0-9]{15,18}$/;
+	$type ||= $object->{attributes}{type} || $object->{type} || undef;
+	$type = undef unless $type && !ref($type);
+
+	delete($object->{Id});
+	delete($object->{type});
+	delete($object->{attributes});
+
+	# we have now cleaned up the object and hopefully have a type and Id.
+	unless ( $type ) {
+		die "No SObject Type defined." unless $cb;
+		$self->$cb("No SObject Type defined.", undef);
+		return $self;
+	}
+	unless ( $id ) {
+		die "No SObject ID provided." unless $cb;
+		$self->$cb("No SObject ID provided.", undef);
+		return $self;
+	}
+	unless ( scalar(keys(%$object)) ) {
+		die "Empty SObjects are not allowed." unless $cb;
+		$self->$cb("Empty SObjects are not allowed.",undef);
+		return $self;
+	}
+
+	# blocking request
+	unless ( $cb ) {
+		$self->login();
+		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type/$id");
+		my $tx = $self->ua->patch($url, $self->_headers(), json => $object);
+		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		return $tx->res->json || {id=>$id,success=>'true',errors=>[],};
+	}
+
+	# non-blocking request
+	$self->login(sub {
+		my ( $sf, $err, $token ) = @_;
+		return $sf->$cb($err,[]) if $err;
+		return $sf->$cb('No login token',[]) unless $token;
+		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$type/$id");
+		$sf->ua->patch($url, $sf->_headers(), json=>$object,sub {
+			my ($ua, $tx) = @_;
+			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb(undef,($tx->res->json || {id=>$id,success=>'true',errors=>[],}));
+		});
+	});
+	return $self;
+
 }
 
 # create an error string
@@ -812,6 +870,24 @@ $sf->search('FIND{genio*}', sub {
 
 This method calls the Salesforce L<Search method|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_search.htm>.
 Your search query must be in the form of an L<SOSL String|https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_sosl_syntax.htm>.
+
+=head2 update
+
+	# blocking
+	try {
+		my $results = $sf->update('SObject_Type','SObject_Id', {Name=>'New Name',});
+		say Dumper $results;
+	} catch {
+		die "Errors: $_";
+	};
+
+	# non-blocking
+	$sf->query('SObject_Type','SObject_Id', {Name=>'New Name',}, sub {
+		my ($sf, $err, $results) = @_;
+		say Dumper $results;
+	});
+
+This method calls the Salesforce L<Update method|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_update_fields.htm>.
 
 =head1 ERROR HANDLING
 
