@@ -83,6 +83,48 @@ sub create {
 	return $self;
 }
 
+sub destroy { goto &delete }
+sub del { goto &delete }
+sub delete {
+	my ($self, $type, $id, $cb) = @_;
+	$cb = undef unless ( $cb && ref($cb) && ref($cb) eq 'CODE' );
+	$type = undef unless ( $type && !ref($type) );
+	$id = undef unless ( $id && !ref($id) && $id =~ /^[a-zA-Z0-9]{15,18}$/ );
+
+	unless ( $type ) {
+		die "No SObject Type defined." unless $cb;
+		$self->$cb("No SObject Type defined.", undef);
+		return $self;
+	}
+	unless ( $id ) {
+		die "No SObject ID provided." unless $cb;
+		$self->$cb("No SObject ID provided.", undef);
+		return $self;
+	}
+
+	# blocking request
+	unless ( $cb ) {
+		$self->login();
+		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type/$id");
+		my $tx = $self->ua->delete($url, $self->_headers());
+		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		return $tx->res->json || {id=>$id,success=>'true',errors=>[],};
+	}
+
+	# non-blocking request
+	$self->login(sub {
+		my ( $sf, $err, $token ) = @_;
+		return $sf->$cb($err,[]) if $err;
+		return $sf->$cb('No login token',[]) unless $token;
+		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$type/$id");
+		$sf->ua->delete($url, $sf->_headers(), sub {
+			my ($ua, $tx) = @_;
+			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb(undef,($tx->res->json||{id=>$id,success=>'true',errors=>[],}));
+		});
+	});
+}
+
 # describe an object
 sub describe_sobject { goto &describe }
 sub describe {
@@ -575,6 +617,44 @@ Synonym for C<create>
 	});
 
 This method calls the Salesforce L<Create method|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_sobject_create.htm>.
+On a successful transaction, a JSON response is returned with three fields (C<id>, C<success>, and C<errors>).  You should check that response to see if your creation attempt actually succeeded.
+
+=head2 del
+
+Synonym for C<delete>.
+
+=head2 destroy
+
+Synonym for C<delete>.
+
+=head2 delete
+
+	# blocking
+	try {
+		my $res = $sf->delete('Account',$id);
+		if ( $res->{success} ) { # even if the tx succeeds, check the response!
+			say "Deleted the id: ",$res->{id};
+		}
+		else {
+			die Dumper $res->{errors};
+		}
+	} catch {
+		die "Errors: $_";
+	};
+
+	# non-blocking
+	$sf->delete('Account',$id, sub {
+		my ($sf, $err, $res) = @_;
+		die "Got an error trying to delete the Account: $err" if $err;
+		if ( $res->{success} ) { # even if the tx succeeds, check the response!
+			say "Deleted the id: ",$res->{id};
+		}
+		else {
+			die Dumper $res->{errors};
+		}
+	});
+
+This method calls the Salesforce L<Delete method|https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_delete_record.htm>.
 On a successful transaction, a JSON response is returned with three fields (C<id>, C<success>, and C<errors>).  You should check that response to see if your creation attempt actually succeeded.
 
 =head2 describe_sobject
