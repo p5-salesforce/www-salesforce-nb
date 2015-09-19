@@ -35,7 +35,7 @@ has version => (
 	default => '34.0',
 );
 
-sub insert { goto &create }
+sub insert { shift->create(@_) }
 sub create {
 	my $self = shift;
 	my $cb = ($_[-1] && ref($_[-1]) && ref($_[-1]) eq 'CODE')? pop: undef;
@@ -83,8 +83,8 @@ sub create {
 	return $self;
 }
 
-sub destroy { goto &delete }
-sub del { goto &delete }
+sub destroy { shift->delete(@_) }
+sub del { shift->delete(@_) }
 sub delete {
 	my ($self, $type, $id, $cb) = @_;
 	$cb = undef unless ( $cb && ref($cb) && ref($cb) eq 'CODE' );
@@ -126,7 +126,7 @@ sub delete {
 }
 
 # describe an object
-sub describe_sobject { goto &describe }
+sub describe_sobject { shift->describe(@_) }
 sub describe {
 	my ($self, $object, $cb) = @_;
 	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
