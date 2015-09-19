@@ -38,10 +38,10 @@ has version => (
 sub insert { shift->create(@_) }
 sub create {
 	my $self = shift;
-	my $cb = ($_[-1] && ref($_[-1]) && ref($_[-1]) eq 'CODE')? pop: undef;
+	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
 	my $type = ($_[0] && !ref($_[0]))?shift:undef;
 	# The only remaining thing on the call stack should be the hashref SObject
-	my $object = ($_[0] && ref($_[0]) && ref($_[0]) eq 'HASH')? shift: {};
+	my $object = ($_[0] && ref($_[0]) eq 'HASH')? shift: {};
 	$type ||= $object->{attributes}{type} || $object->{type} || undef;
 	$type = undef unless $type && !ref($type);
 	delete($object->{Id});
@@ -87,7 +87,7 @@ sub destroy { shift->delete(@_) }
 sub del { shift->delete(@_) }
 sub delete {
 	my ($self, $type, $id, $cb) = @_;
-	$cb = undef unless ( $cb && ref($cb) && ref($cb) eq 'CODE' );
+	$cb = undef unless ( $cb && ref($cb) eq 'CODE' );
 	$type = undef unless ( $type && !ref($type) );
 	$id = undef unless ( $id && !ref($id) && $id =~ /^[a-zA-Z0-9]{15,18}$/ );
 
@@ -312,7 +312,7 @@ sub retrieve {
 # describe an object
 sub search {
 	my ($self, $sosl, $cb) = @_;
-	$cb = ($cb && && ref($cb) && ref($cb) eq 'CODE')? $cb: undef;
+	$cb = ($cb && && ref($cb) eq 'CODE')? $cb: undef;
 	unless ($sosl) {
 		die 'An SOSL statement is required to search' unless $cb;
 		$self->$cb('An SOSL statement is required to search',undef);
@@ -349,8 +349,8 @@ sub update {
 	my $self = shift;
 	my $type = ($_[0] && !ref($_[0]))?shift:undef;
 	my $id = ($_[0] && !ref($_[0]))?shift:undef;
-	my $object = ($_[0] && ref($_[0]) && ref($_[0]) eq 'HASH')? shift: {};
-	my $cb = ($_[-1] && ref($_[-1]) && ref($_[-1]) eq 'CODE')? pop: undef;
+	my $object = ($_[0] && ref($_[0]) eq 'HASH')? shift: {};
+	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
 
 	$id ||= $object->{Id} || undef;
 	$id = undef unless $id && !ref($id) && $id =~ /^[a-zA-Z0-9]{15,18}$/;
