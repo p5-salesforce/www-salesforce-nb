@@ -5,6 +5,7 @@ use Mojo::URL;
 use Mojo::UserAgent;
 use strictures 2;
 use namespace::clean;
+use v5.10;
 
 with 'WWW::Salesforce::Connector';
 
@@ -312,7 +313,7 @@ sub retrieve {
 # describe an object
 sub search {
 	my ($self, $sosl, $cb) = @_;
-	$cb = ($cb && && ref($cb) eq 'CODE')? $cb: undef;
+	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
 	unless ($sosl) {
 		die 'An SOSL statement is required to search' unless $cb;
 		$self->$cb('An SOSL statement is required to search',undef);
@@ -344,6 +345,7 @@ sub search {
 	});
 	return $self;
 }
+
 
 sub update {
 	my $self = shift;

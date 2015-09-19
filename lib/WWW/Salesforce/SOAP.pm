@@ -7,6 +7,7 @@ use Mojo::Util qw(xml_escape);
 use 5.010;
 use namespace::clean;
 
+has sf => (is=>'rw',isa=>sub{die "Must be a WWW::Salesforce" unless $_[0] && Scalar::Util::blessed($_[0]) && $_[0]->isa('WWW::Salesforce')});
 has urn => (is=>'rw',default=>'urn:partner.soap.sforce.com');
 
 sub envelope {
@@ -14,7 +15,7 @@ sub envelope {
 	my $dom = Mojo::DOM->new->xml(1)->parse('<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope />');
 	$dom->at('soapenv\:Envelope')->attr(
 		'xmlns:soapenv' => "http://schemas.xmlsoap.org/soap/envelope/",
-		'xmlns:urn' => $self->urn,
+		'xmlns:urn' => 'urn:partner.soap.sforce.com',
 	);
 	$dom->at('soapenv\:Envelope')->content('<soapenv:Header /><soapenv:Body />');
 	return $dom;
