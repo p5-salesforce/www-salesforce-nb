@@ -8,6 +8,47 @@ BEGIN {
 # Silence
 app->log->level('fatal');
 get '/' => {text => 'works!'};
+get '/services/data/v33.0/sobjects' => sub {
+	my $c = shift;
+	return $c->render(json=>{
+		encoding => "UTF-8",
+		maxBatchSize => 200,
+		sobjects => [
+			{
+				activateable => 'false',
+				createable => 'true',
+				custom => 'false',
+				customSetting => 'false',
+				deletable => 'true',
+				deprecatedAndHidden => 'false',
+				feedEnabled => 'true',
+				keyPrefix => "001",
+				label => "Account",
+				labelPlural => "Accounts",
+				layoutable => 'true',
+				mergeable => 'true',
+				name => "Account",
+				queryable => 'true',
+				replicateable => 'true',
+				retrieveable => 'true',
+				searchable => 'true',
+				triggerable => 'true',
+				undeletable => 'true',
+				updateable => 'true',
+				urls => {
+					compactLayouts => "/services/data/v34.0/sobjects/Account/describe/compactLayouts",
+					rowTemplate => "/services/data/v34.0/sobjects/Account/{ID}",
+					approvalLayouts => "/services/data/v34.0/sobjects/Account/describe/approvalLayouts",
+					listviews => "/services/data/v34.0/sobjects/Account/listviews",
+					describe => "/services/data/v34.0/sobjects/Account/describe",
+					quickActions => "/services/data/v34.0/sobjects/Account/quickActions",
+					layouts => "/services/data/v34.0/sobjects/Account/describe/layouts",
+					sobject => "/services/data/v34.0/sobjects/Account",
+				},
+			},
+		],
+	});
+};
 post '/services/data/v33.0/sobjects/:type' => sub {
 	my $c = shift;
 	my $type = $c->stash('type');

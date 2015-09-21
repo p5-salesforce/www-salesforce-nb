@@ -129,8 +129,9 @@ sub delete {
 # describe an object
 sub describe_sobject { shift->describe(@_) }
 sub describe {
-	my ($self, $object, $cb) = @_;
-	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
+	my $self = shift;
+	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
+	my $object = ($_[0] && !ref($_[0]))?shift:undef;
 	unless ($object) {
 		die 'An object is required to describe it' unless $cb;
 		$self->$cb('An object is required to describe it',undef);

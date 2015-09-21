@@ -1,17 +1,29 @@
 use Mojo::Base -strict;
 use Test::More;
 use Mojo::JSON;
-use Mojo::IOLoop::Delay;
-use Data::Dumper;
+use Mojolicious::Lite;
 use Try::Tiny;
+use v5.10;
 
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
 BEGIN {
+	$ENV{MOJO_NO_SOCKS} = $ENV{MOJO_NO_TLS} = 1;
+	$ENV{MOJO_REACTOR} = 'Mojo::Reactor::Poll';
 	use_ok( 'WWW::Salesforce' ) || BAIL_OUT("Can't use WWW::Salesforce");
 }
-require_ok('mock.pl') || BAIL_OUT("Can't load the mock server");
+# Silence
+app->log->level('fatal');
+post '/services/data/v33.0/sobjects/:type' => sub {
+	my $c = shift;
+	my $type = $c->stash('type');
+	my $params = $c->req->json;
+	return $c->render(json=>{success=>'false',id=>undef,errors=>['bad object']},status=>500) unless $type;
+	return $c->render(json=>{success=>'false',id=>undef,errors=>['no params']},status=>500) unless $params && ref($params) eq 'HASH';
+	return $c->render(json=>{success=>'false',id=>undef,errors=>['bad object']}) unless $type eq 'Account';
+	return $c->render(json=>{success=>'true',id=>'01t500000016RuaAAE',errors=>[]});
+};
 
 my $sf = try {
 	WWW::Salesforce->new(
@@ -29,7 +41,11 @@ my $sf = try {
 	return undef;
 };
 isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
-
+# set the login
+$sf->_instance_url('/');
+$sf->_access_token('123455663452abacbabababababababanenenenene');
+$sf->_access_time(time());
+# actual testing
 can_ok($sf, qw(create insert) );
 
 { # error handling

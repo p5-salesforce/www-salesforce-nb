@@ -1,16 +1,20 @@
 use Mojo::Base -strict;
 use Test::More;
 use Mojo::JSON;
-use Data::Dumper;
+use Mojolicious::Lite;
 use Try::Tiny;
+use v5.10;
 
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
 BEGIN {
+	$ENV{MOJO_NO_SOCKS} = $ENV{MOJO_NO_TLS} = 1;
+	$ENV{MOJO_REACTOR} = 'Mojo::Reactor::Poll';
 	use_ok( 'WWW::Salesforce' ) || BAIL_OUT("Can't use WWW::Salesforce");
 }
-require_ok('mock.pl') || BAIL_OUT("Can't load the mock server");
+# Silence
+app->log->level('fatal');
 
 my $sf = try {
 	WWW::Salesforce->new(
@@ -28,7 +32,11 @@ my $sf = try {
 	return undef;
 };
 isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
-
+# set the login
+$sf->_instance_url('/');
+$sf->_access_token('123455663452abacbabababababababanenenenene');
+$sf->_access_time(time());
+# actual testing
 can_ok($sf, qw(delete del destroy) );
 
 done_testing;
