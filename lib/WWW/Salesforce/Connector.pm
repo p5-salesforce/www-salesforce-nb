@@ -9,7 +9,7 @@ use WWW::Salesforce::SOAP;
 use Moo::Role;
 use 5.010;
 has '_access_token' => (is=>'rw',default=>'');
-has '_access_time' => (is=>'rw',default=>'0');
+has '_access_time' => (is=>'rw',lazy=>1,default=>sub{time()});
 has '_instance_url' => (is => 'rw', default => '');
 has '_soap' => (is => 'ro',required => 1,default => sub {WWW::Salesforce::SOAP->new();},);
 
