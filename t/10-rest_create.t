@@ -1,5 +1,6 @@
 use Mojo::Base -strict;
 use Test::More;
+use Mojo::IOLoop::Delay;
 use Mojo::JSON;
 use Mojolicious::Lite;
 use Try::Tiny;
