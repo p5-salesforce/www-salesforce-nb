@@ -13,16 +13,31 @@ BEGIN {
 	$ENV{MOJO_REACTOR} = 'Mojo::Reactor::Poll';
 	use_ok( 'WWW::Salesforce' ) || BAIL_OUT("Can't use WWW::Salesforce");
 }
+my @fields = qw(Name MailingStreet MailingCity MailingState MailingCountry Phone);
 # Silence
 app->log->level('fatal');
 post '/services/data/v33.0/sobjects/:type' => sub {
 	my $c = shift;
 	my $type = $c->stash('type');
-	my $params = $c->req->json;
-	return $c->render(json=>{success=>'false',id=>undef,errors=>['bad object']},status=>500) unless $type;
-	return $c->render(json=>{success=>'false',id=>undef,errors=>['no params']},status=>500) unless $params && ref($params) eq 'HASH';
-	return $c->render(json=>{success=>'false',id=>undef,errors=>['bad object']}) unless $type eq 'Account';
-	return $c->render(json=>{success=>'true',id=>'01t500000016RuaAAE',errors=>[]});
+	my $params = $c->req->json || undef;
+	unless ( $type && $type eq 'Account' ) {
+		return $c->render(json=>[{message=>"The requested resource does not exist",errorCode=>"NOT_FOUND"}],status=>404);
+	}
+	if ( $params && ref($params) eq 'ARRAY' ) {
+		return $c->render(json=>[{message=>"Can not deserialize SObject out of START_ARRAY token at [line:1, column:1]",errorCode=>"JSON_PARSER_ERROR"}],status=>400);
+	}
+	elsif ( $params && ref($params) eq 'HASH' ) {
+		unless ( $params->{Name} ) {
+			return $c->render(json=>[{message=>"Required fields are missing: [Name]",errorCode=>"REQUIRED_FIELD_MISSING",fields=>["Name",],}],status=>400);
+		}
+		for my $key (keys %$params) {
+			unless ( grep {$key eq $_} @fields ) {
+				return $c->render(json=>[{message=>"No such column '$key' on sobject of type $type",errorCode=>"INVALID_FIELD"}],status=>400);
+			}
+		}
+		return $c->render(json=>{success=>'true',id=>'01t500000016RuaAAE',errors=>[]});
+	}
+	return $c->render(json=>[{message=>"Multipart message must include a non-binary part",errorCode=>"INVALID_MULTIPART_REQUEST"}],status=>400);
 };
 
 my $sf = try {
@@ -49,52 +64,72 @@ $sf->_access_time(time());
 can_ok($sf, qw(create insert) );
 
 { # error handling
-	my $error = try {
-		my $obj = $sf->create('badObject', {empty=>'stuff'});
-		return "Unknown result" unless ( $obj && ref($obj) eq 'HASH' );
-		return $obj->{id} if ( $obj->{success} && $obj->{id} );
-		return join(', ', @{$obj->{errors}}) if ref($obj->{errors}) eq 'ARRAY';
-		return "unknown error";
-	} catch {
-		$_;
-	};
-	like( $error, qr/bad object/, 'create: got the right error message');
+	my $error;
+	$error = try {return $sf->create('badObject', {empty=>'stuff'}) } catch { $_; };
+	like( $error, qr/The requested resource does not exist/, 'create error: invalid object type');
+	$error = try { return $sf->create({type=>'badObject',empty=>'stuff'}); } catch { $_; };
+	like( $error, qr/The requested resource does not exist/, 'create error: invalid object type in-type');
+	$error = try { return $sf->create({attributes => {type=>'badObject'},empty=>'stuff'}); } catch { $_; };
+	like( $error, qr/The requested resource does not exist/, 'create error: invalid object type in-attributes-type');
+	$error = try {return $sf->create('Account', {empty=>'stuff'}) } catch { $_; };
+	like( $error, qr/Required fields are missing/, 'create error: missing required field');
+	$error = try {return $sf->create('Account', {Name=>'foo',empty=>'stuff'}) } catch { $_; };
+	like( $error, qr/INVALID_FIELD: No such column/, 'create error: Invalid Column');
 	$error = try { return $sf->create({empty=>'stuff'}); } catch { $_; };
-	like( $error, qr/^No SObject Type defined/, 'create: no type error message');
+	like( $error, qr/^No SObject Type defined/, 'create error: no type error message');
 	$error = try { return $sf->create('type',{}); } catch { $_; };
-	like( $error, qr/^Empty SObjects are not allowed/, 'create: empty object error message');
+	like( $error, qr/^Empty SObjects are not allowed/, 'create error: empty object error message');
 	$error = try { return $sf->create('type',{}); } catch { $_; };
-	like( $error, qr/^Empty SObjects are not allowed/, 'create: empty object error message');
+	like( $error, qr/^Empty SObjects are not allowed/, 'create error: empty object error message');
 	$error = try { return $sf->create('type',''); } catch { $_; };
-	like( $error, qr/^Empty SObjects are not allowed/, 'create: non-hashref object error message');
+	like( $error, qr/^Empty SObjects are not allowed/, 'create error: non-hashref object error message');
 	$error = try { return $sf->create('type',undef); } catch { $_; };
-	like( $error, qr/^Empty SObjects are not allowed/, 'create: non-hashref object error message');
+	like( $error, qr/^Empty SObjects are not allowed/, 'create error: non-hashref object error message');
 	$error = try { return $sf->create('type'); } catch { $_; };
-	like( $error, qr/^Empty SObjects are not allowed/, 'create: no objects error message');
+	like( $error, qr/^Empty SObjects are not allowed/, 'create error: no objects error message');
+
+	$error = try {return $sf->insert('badObject', {empty=>'stuff'}) } catch { $_; };
+	like( $error, qr/The requested resource does not exist/, 'insert error: invalid object type');
+	$error = try { return $sf->insert({type=>'badObject',empty=>'stuff'}); } catch { $_; };
+	like( $error, qr/The requested resource does not exist/, 'insert error: invalid object type in-type');
+	$error = try { return $sf->insert({attributes => {type=>'badObject'},empty=>'stuff'}); } catch { $_; };
+	like( $error, qr/The requested resource does not exist/, 'insert error: invalid object type in-attributes-type');
+	$error = try {return $sf->insert('Account', {empty=>'stuff'}) } catch { $_; };
+	like( $error, qr/Required fields are missing/, 'insert error: missing required field');
+	$error = try {return $sf->insert('Account', {Name=>'foo',empty=>'stuff'}) } catch { $_; };
+	like( $error, qr/INVALID_FIELD: No such column/, 'insert error: Invalid Column');
+	$error = try { return $sf->insert({empty=>'stuff'}); } catch { $_; };
+	like( $error, qr/^No SObject Type defined/, 'insert error: no type error message');
+	$error = try { return $sf->insert('type',{}); } catch { $_; };
+	like( $error, qr/^Empty SObjects are not allowed/, 'insert error: empty object error message');
+	$error = try { return $sf->insert('type',{}); } catch { $_; };
+	like( $error, qr/^Empty SObjects are not allowed/, 'insert error: empty object error message');
+	$error = try { return $sf->insert('type',''); } catch { $_; };
+	like( $error, qr/^Empty SObjects are not allowed/, 'insert error: non-hashref object error message');
+	$error = try { return $sf->insert('type',undef); } catch { $_; };
+	like( $error, qr/^Empty SObjects are not allowed/, 'insert error: non-hashref object error message');
+	$error = try { return $sf->insert('type'); } catch { $_; };
+	like( $error, qr/^Empty SObjects are not allowed/, 'insert error: no objects error message');
 }
 
 # object creation tests
 my $expected_result = {success=>'true',id=>'01t500000016RuaAAE',errors=>[]};
 try {
 	#type as top-level hash key
-	my $res = $sf->create({type=>'Account',Name=>'test',});
-	isa_ok($res, "HASH", "create: got a hashref response");
+	my $res;
+	$res = $sf->create({type=>'Account',Name=>'test',});
 	is_deeply($res, $expected_result, "create: type_in_object: got a good response");
 	#type as attributes hash key
 	$res = $sf->create({attributes=>{type=>'Account'},Name=>'test',});
-	isa_ok($res, "HASH", "create: got a hashref response");
 	is_deeply($res, $expected_result, "create: type_in_object: got a good response");
 	#type argument overridden in top-level hash key
 	$res = $sf->create('Account',{type=>'ThrowawayType',Name=>'test',});
-	isa_ok($res, "HASH", "create: got a hashref response");
 	is_deeply($res, $expected_result, "create: type_in_object: got a good response");
 	#type argument overridden in attributes hash key
 	$res = $sf->create('Account',{attributes=>{type=>'ThrowawayType'},Name=>'test',});
-	isa_ok($res, "HASH", "create: got a hashref response");
 	is_deeply($res, $expected_result, "create: type_in_object: got a good response");
 	#type as first argument and nowhere else
 	$res = $sf->create('Account', {Name=>'test',});
-	isa_ok($res, "HASH", "create: got a hashref response");
 	is_deeply($res, $expected_result, "create: type_before_object: got a good response");
 } catch {
 	BAIL_OUT("Something went wrong in create: $_");
@@ -103,50 +138,37 @@ try {
 try {
 	#type as top-level hash key
 	my $res = $sf->insert({type=>'Account',Name=>'test',});
-	isa_ok($res, "HASH", "insert: got a hashref response");
 	is_deeply($res, $expected_result, "insert: type_in_object: got a good response");
 	#type as attributes hash key
 	$res = $sf->insert({attributes=>{type=>'Account'},Name=>'test',});
-	isa_ok($res, "HASH", "insert: got a hashref response");
 	is_deeply($res, $expected_result, "insert: type_in_object: got a good response");
 	#type argument overridden in top-level hash key
 	$res = $sf->insert('Account',{type=>'ThrowawayType',Name=>'test',});
-	isa_ok($res, "HASH", "insert: got a hashref response");
 	is_deeply($res, $expected_result, "insert: type_in_object: got a good response");
 	#type argument overridden in attributes hash key
 	$res = $sf->insert('Account',{attributes=>{type=>'ThrowawayType'},Name=>'test',});
-	isa_ok($res, "HASH", "insert: got a hashref response");
 	is_deeply($res, $expected_result, "insert: type_in_object: got a good response");
 	#type as first argument and nowhere else
 	$res = $sf->insert('Account', {Name=>'test',});
-	isa_ok($res, "HASH", "insert: got a hashref response");
 	is_deeply($res, $expected_result, "insert: type_before_object: got a good response");
 } catch {
 	BAIL_OUT("Something went wrong in single insert: $_");
 };
 
-# non-blocking test
+# non-blocking errors and successes
 {
 	Mojo::IOLoop::Delay->new()->steps(
-		sub {
-			my $delay = shift;
-			$sf->create('badObject',{empty=>'stuff'}, $delay->begin(0));
-		},
-		sub {
-			my ($delay, $sf, $err, $res) = @_;
-			is($err, undef, 'create_nb: correctly got no fault for an errored call response');
-			isa_ok($res, 'HASH', 'create_nb: got a hashref response');
-			is_deeply($res, {id=>undef,success=>'false',errors=>['bad object']}, "create_nb: got the right call error response");
+		sub {$sf->create('badObject',{empty=>'stuff'}, shift->begin(0));},
+		sub { my ($delay, $sf, $err, $res) = @_;
+			like( $err, qr/The requested resource does not exist/, 'create_nb error: invalid object type');
+			is($res, undef, 'create_nb error: correctly got no successful response');
 		}
 	)->catch(sub {
 		shift->ioloop->stop;
 		BAIL_OUT("Something went wrong in create: ".pop);
 	})->wait;
 	Mojo::IOLoop::Delay->new()->steps(
-		sub {
-			my $delay = shift;
-			$sf->create({type=>'Account',Name=>'test',}, $delay->begin(0));
-		},
+		sub {$sf->create({type=>'Account',Name=>'test',}, shift->begin(0));},
 		sub {
 			my ($delay, $sf, $err, $res) = @_;
 			is($err, undef, 'create_nb: correctly got no fault');
