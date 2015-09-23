@@ -122,7 +122,7 @@ can_ok($sf, qw(delete del destroy) );
 	like( $error, qr/malformed id/, 'destroy error: Entity is malformed');
 }
 
-my $expected={id=>$ID,success=>'true',errors=>[],};
+my $expected={id=>$ID,success=>1,errors=>[],};
 
 # successes
 {

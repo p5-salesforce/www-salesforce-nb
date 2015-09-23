@@ -109,7 +109,7 @@ sub delete {
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type/$id");
 		my $tx = $self->ua->delete($url, $self->_headers());
 		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
-		return $tx->res->json || {id=>$id,success=>'true',errors=>[],};
+		return $tx->res->json || {id=>$id,success=>1,errors=>[],};
 	}
 
 	# non-blocking request
@@ -121,7 +121,7 @@ sub delete {
 		$sf->ua->delete($url, $sf->_headers(), sub {
 			my ($ua, $tx) = @_;
 			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
-			return $sf->$cb(undef,($tx->res->json||{id=>$id,success=>'true',errors=>[],}));
+			return $sf->$cb(undef,($tx->res->json||{id=>$id,success=>1,errors=>[],}));
 		});
 	});
 }
@@ -347,17 +347,13 @@ sub search {
 	return $self;
 }
 
-
 sub update {
-	my $self = shift;
-	my $type = ($_[0] && !ref($_[0]))?shift:undef;
-	my $id = ($_[0] && !ref($_[0]))?shift:undef;
-	my $object = ($_[0] && ref($_[0]) eq 'HASH')? shift: {};
-	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
+	my ($self,$type,$id,$object,$cb) = @_;
+	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
+	$id = ($id && !ref($id) && $id =~ /^[a-zA-Z0-9]{15,18}$/)?$id: undef;
+	$object = ($object && ref($object) eq 'HASH')? $object: {};
 
-	$id ||= $object->{Id} || undef;
-	$id = undef unless $id && !ref($id) && $id =~ /^[a-zA-Z0-9]{15,18}$/;
-	$type ||= $object->{attributes}{type} || $object->{type} || undef;
+	$type = ($type && !ref($type))? $type : $object->{attributes}{type} || $object->{type} || undef;
 	$type = undef unless $type && !ref($type);
 
 	delete($object->{Id});
@@ -387,7 +383,7 @@ sub update {
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type/$id");
 		my $tx = $self->ua->patch($url, $self->_headers(), json => $object);
 		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
-		return $tx->res->json || {id=>$id,success=>'true',errors=>[],};
+		return $tx->res->json || {id=>$id,success=>1,errors=>[],};
 	}
 
 	# non-blocking request
@@ -399,7 +395,7 @@ sub update {
 		$sf->ua->patch($url, $sf->_headers(), json=>$object,sub {
 			my ($ua, $tx) = @_;
 			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
-			return $sf->$cb(undef,($tx->res->json || {id=>$id,success=>'true',errors=>[],}));
+			return $sf->$cb(undef,($tx->res->json || {id=>$id,success=>1,errors=>[],}));
 		});
 	});
 	return $self;
