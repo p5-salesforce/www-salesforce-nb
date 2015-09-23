@@ -8,9 +8,14 @@ MANIFEST.SKIP
 LICENSE
 INSTALL
 README.md
-t/lib/mock.pl
 t/00-login.t
 t/10-rest_create.t
 t/11-rest_describe.t
+t/12-rest_delete.t
+t/13-rest_update.t
+t/14-rest_query.t
+t/15-rest_retrieve.t
+t/16-rest_search.t
+t/17-rest_limits.t
 t/pod-coverage.t
 t/pod.t

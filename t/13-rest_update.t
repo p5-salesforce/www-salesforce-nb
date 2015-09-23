@@ -68,13 +68,12 @@ my $sf = try {
 	BAIL_OUT("Unable to create new instance: $_");
 	return undef;
 };
+isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
 # set the login
 $sf->_instance_url('/');
 $sf->_access_token('123455663452abacbabababababababanenenenene');
 $sf->_access_time(time());
 # actual testing
-isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
-
 can_ok($sf, qw(update) );
 
 { # error handling from within the PM. never hits the server
