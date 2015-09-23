@@ -16,7 +16,6 @@ BEGIN {
 }
 # Silence
 app->log->level('fatal');
-get '/' => {text => 'works!'};
 post '/services/Soap/u/33.0/' => sub {
 	my $c = shift;
 	my $username = '';
@@ -83,18 +82,7 @@ my $sf = try {
 isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
 
 # Test attributes
-can_ok($sf, (
-	qw(_access_token _access_time _instance_url consumer_key consumer_secret ),
-	qw(username password pass_token ua version login_url login_type),
-)) or BAIL_OUT("Something's wrong with the attributes!");
-
-# Test UA
-is $sf->ua->get('/')->res->code, 200, 'UA: right status';
-is $sf->ua->get('/')->res->body, 'works!', 'UA: right body content';
-
-# Test API Path gathering
-is($sf->_path(),'/services/data/v33.0/','api_path: got the correct latest path');
-is($sf->_path('soap'),'/services/Soap/u/33.0/','api_path: got the correct soap path');
+can_ok($sf, qw(login)) or BAIL_OUT("Something's wrong with the methods!");
 
 # test a bad login
 {
