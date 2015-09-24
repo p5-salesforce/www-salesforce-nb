@@ -93,8 +93,8 @@ sub create {
 sub destroy { shift->delete(@_) }
 sub del { shift->delete(@_) }
 sub delete {
-	my ($self, $type, $id, $cb) = @_;
-	$cb = undef unless ( $cb && ref($cb) eq 'CODE' );
+	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
+	my ($self, $type, $id) = @_;
 	$type = undef unless ( $type && !ref($type) );
 	$id = undef unless ( $id && !ref($id) && $id =~ /^[a-zA-Z0-9]{15,18}$/ );
 
@@ -115,19 +115,19 @@ sub delete {
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type/$id");
 		my $tx = $self->ua->delete($url, $self->_headers());
 		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
-		return $tx->res->json || {id=>$id,success=>1,errors=>[],};
+		# on success, just return the following
+		return {id=>$id,success=>1,errors=>[]};
 	}
 
 	# non-blocking request
 	$self->login(sub {
 		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,[]) if $err;
-		return $sf->$cb('No login token',[]) unless $token;
+		return $sf->$cb($err,) if $err;
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$type/$id");
 		$sf->ua->delete($url, $sf->_headers(), sub {
 			my ($ua, $tx) = @_;
 			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
-			return $sf->$cb(undef,($tx->res->json||{id=>$id,success=>1,errors=>[],}));
+			return $sf->$cb(undef,{id=>$id,success=>1,errors=>[]});
 		});
 	});
 }
