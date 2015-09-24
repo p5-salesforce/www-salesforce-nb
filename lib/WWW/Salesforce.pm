@@ -135,9 +135,9 @@ sub delete {
 # describe an object
 sub describe_sobject { shift->describe(@_) }
 sub describe {
-	my $self = shift;
 	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
-	my $object = ($_[0] && !ref($_[0]))?shift:undef;
+	my ($self,$object) = @_;
+	$object = ($object && !ref($object))?$object:undef;
 	unless ($object) {
 		die 'An object is required to describe it' unless $cb;
 		$self->$cb('An object is required to describe it',undef);
@@ -156,8 +156,7 @@ sub describe {
 	# non-blocking request
 	$self->login(sub {
 		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,[]) if $err;
-		return $sf->$cb('No login token',[]) unless $token;
+		return $sf->$cb($err,undef) if $err;
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$object/describe");
 		$sf->ua->get($url, $sf->_headers(), sub {
 			my ($ua, $tx) = @_;
@@ -177,6 +176,7 @@ sub describe_global {
 		$self->login(); # handles renewing the auth token if necessary
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects");
 		my $tx = $self->ua->get($url, $self->_headers());
+		# uncoverable branch true
 		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
 		return $tx->res->json;
 	}
@@ -184,11 +184,11 @@ sub describe_global {
 	# non-blocking request
 	$self->login(sub {
 		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,[]) if $err;
-		return $sf->$cb('No login token',[]) unless $token;
+		return $sf->$cb($err,undef) if $err;
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects");
 		$sf->ua->get($url, $sf->_headers(), sub {
 			my ($ua, $tx) = @_;
+			# uncoverable branch true
 			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
 			return $sf->$cb(undef,$tx->res->json);
 		});

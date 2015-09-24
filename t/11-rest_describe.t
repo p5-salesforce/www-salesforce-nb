@@ -119,14 +119,6 @@ $sf->_access_time(time());
 # actual testing
 can_ok($sf, qw(describe describe_sobject describe_global) );
 
-# describe_global
-try {
-	my $res = $sf->describe_global();
-	is_deeply($res,$DES_GLO, "describe_global: correct response" )
-} catch {
-	BAIL_OUT("Something went wrong in describe_global: $_");
-};
-
 # describe | describe_sobject errors
 {
 	my $res;
@@ -144,6 +136,20 @@ try {
 	like( $res, qr/An object is required to describe it/, "describe_sobject: got correct error message on empty string object");
 	$res = try{return $sf->describe_sobject(undef)} catch {return $_};
 	like( $res, qr/An object is required to describe it/, "describe_sobject: got correct error message on undef object");
+}
+
+# describe_global
+{
+	my $res;
+	$res = try{return $sf->describe_global()} catch {return $_};
+	is_deeply( $res, $DES_GLO, "describe_global: correct");
+	$res = try{return $sf->describe_global('')} catch {return $_};
+	is_deeply( $res, $DES_GLO, "describe_global: correct even with empty string");
+	$res = try{return $sf->describe_global({})} catch {return $_};
+	is_deeply( $res, $DES_GLO, "describe_global: correct even with hashref");
+	$res = try{return $sf->describe_global(undef)} catch {return $_};
+	is_deeply( $res, $DES_GLO, "describe_global: correct even with undef");
+
 }
 
 # successful describes
@@ -237,6 +243,28 @@ Mojo::IOLoop::Delay->new()->steps(
 )->catch(sub {
 	shift->ioloop->stop;
 	BAIL_OUT("Something went wrong in describe_sobject-nb: ".pop);
+})->wait;
+# attempt it when logins fail
+$sf->_access_token('');
+Mojo::IOLoop::Delay->new()->steps(
+	sub {$sf->describe('Account', shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		like( $err, qr/404 Not Found/, 'describe_global-nb error: bad login');
+		is($res, undef, 'describe_global-nb error: bad login correctly got no successful response');
+	}
+)->catch(sub {
+	shift->ioloop->stop;
+	BAIL_OUT("Something went wrong in describe_global-nb: ".pop);
+})->wait;
+Mojo::IOLoop::Delay->new()->steps(
+	sub {$sf->describe_global(shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		like( $err, qr/404 Not Found/, 'describe_global-nb error: bad login');
+		is($res, undef, 'describe_global-nb error: bad login correctly got no successful response');
+	}
+)->catch(sub {
+	shift->ioloop->stop;
+	BAIL_OUT("Something went wrong in describe_global-nb: ".pop);
 })->wait;
 
 done_testing;
