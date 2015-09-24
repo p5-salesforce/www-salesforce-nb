@@ -90,7 +90,7 @@ can_ok($sf, qw(query) );
 	catch {
 		$_;
 	};
-	like($error, qr/^401 Unauthorized: foo: what?!?/, 'query: got proper error message');
+	like($error, qr/^401 Unauthorized, foo: what?!?/, 'query: got proper error message');
 }
 
 done_testing;

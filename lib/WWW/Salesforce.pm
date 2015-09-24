@@ -38,28 +38,35 @@ has version => (
 
 sub insert { shift->create(@_) }
 sub create {
-	my $self = shift;
 	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
-	my $type = ($_[0] && !ref($_[0]))?shift:undef;
+	my ($self,$type,$object) = @_;
+	$object = ($object && ref($object) eq 'HASH')? $object: undef;
+	unless ( $object ) {
+		if ( $type && ref($type) eq 'HASH' ) {
+			$object = $type;
+			$type = undef;
+		} else {
+			$object = {};
+		}
+	}
+	$type = ($type && !ref($type))? $type: undef;
 	# The only remaining thing on the call stack should be the hashref SObject
-	my $object = ($_[0] && ref($_[0]) eq 'HASH')? shift: {};
 	$type ||= $object->{attributes}{type} || $object->{type} || undef;
 	$type = undef unless $type && !ref($type);
 	delete($object->{Id});
 	delete($object->{type});
 	delete($object->{attributes});
 	# we have now cleaned up the object and hopefully have a type.
-	unless ( scalar(keys(%$object)) ) {
-		die "Empty SObjects are not allowed." unless $cb;
-		$self->$cb("Empty SObjects are not allowed.",undef);
-		return $self;
-	}
 	unless ( $type ) {
 		die "No SObject Type defined." unless $cb;
 		$self->$cb("No SObject Type defined.", undef);
 		return $self;
 	}
-
+	unless ( scalar(keys(%$object)) ) {
+		die "Empty SObjects are not allowed." unless $cb;
+		$self->$cb("Empty SObjects are not allowed.",undef);
+		return $self;
+	}
 	# blocking request
 	unless ( $cb ) {
 		$self->login();
@@ -72,8 +79,7 @@ sub create {
 	# non-blocking request
 	$self->login(sub {
 		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,[]) if $err;
-		return $sf->$cb('No login token',[]) unless $token;
+		return $sf->$cb($err,undef) if $err;
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$type");
 		$sf->ua->post($url, $sf->_headers(), json=>$object,sub {
 			my ($ua, $tx) = @_;
@@ -407,19 +413,24 @@ sub _error {
 	my ( $self, $error, $data ) = @_;
 	my $message = '';
 	if ( $error && ref($error) eq 'HASH' ) {
-		$message .= sprintf("%s %s: ", $error->{code} || "500", $error->{message} || '');
+		$message = $error->{code}||500;
+		my $emsg = $error->{message}||'';
+		$message .= " $emsg" if $emsg;
 	}
-	return '' unless $message;
-	# no need to traverse the data if there's no error.
-	if ( $data ) {
-		if ( ref($data) eq 'ARRAY' ) {
-			for my $err ( @{$data} ) {
-				$message .= sprintf("%s: %s", $err->{errorCode}||$err->{error}||'',$err->{message}||$err->{error_description}||'');
-			}
-		}
-		elsif ( ref($data) eq 'HASH' ) {
-			$message .= sprintf("%s: %s", $data->{errorCode}||$data->{error}||'',$data->{message}||$data->{error_description}||'');
-		}
+	return $message unless $data;
+
+	if ( ref($data) eq 'HASH' ) {
+		my $ecode = $data->{errorCode}||$data->{error}||'';
+		my $emsg = $data->{message}||$data->{error_description}||'';
+		$message .= ", $ecode: $emsg" if $ecode || $emsg;
+		return $message;
+	}
+	return $message unless ref($data) eq 'ARRAY';
+	for my $err ( @{$data} ) {
+		next unless $err && ref($err) eq 'HASH';
+		my $ecode = $err->{errorCode}||$err->{error}||'';
+		my $emsg = $err->{message}||$err->{error_description}||'';
+		$message .= ", $ecode: $emsg" if $ecode || $emsg;
 	}
 	return $message;
 }

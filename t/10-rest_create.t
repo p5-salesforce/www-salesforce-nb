@@ -66,6 +66,22 @@ can_ok($sf, qw(create insert) );
 
 { # error handling
 	my $error;
+	$error = try {return $sf->create() } catch { $_; };
+	like( $error, qr/^No SObject Type defined/, 'create error: invalid object');
+	$error = try {return $sf->create({type=>{}}) } catch { $_; };
+	like( $error, qr/^No SObject Type defined/, 'create error: invalid object');
+	$error = try {return $sf->create('test', '') } catch { $_; };
+	like( $error, qr/Empty SObjects are not allowed/, 'create error: invalid object');
+	$error = try {return $sf->create('test', []) } catch { $_; };
+	like( $error, qr/Empty SObjects are not allowed/, 'create error: invalid object');
+	$error = try {return $sf->create('test', undef) } catch { $_; };
+	like( $error, qr/Empty SObjects are not allowed/, 'create error: invalid object');
+	$error = try {return $sf->create('', '') } catch { $_; };
+	like( $error, qr/^No SObject Type defined/, 'create error: invalid object');
+	$error = try {return $sf->create([], []) } catch { $_; };
+	like( $error, qr/^No SObject Type defined/, 'create error: invalid object');
+	$error = try {return $sf->create(undef, undef) } catch { $_; };
+	like( $error, qr/^No SObject Type defined/, 'create error: invalid object');
 	$error = try {return $sf->create('badObject', {empty=>'stuff'}) } catch { $_; };
 	like( $error, qr/The requested resource does not exist/, 'create error: invalid object type');
 	$error = try { return $sf->create({type=>'badObject',empty=>'stuff'}); } catch { $_; };
@@ -159,6 +175,26 @@ try {
 # non-blocking errors and successes
 {
 	Mojo::IOLoop::Delay->new()->steps(
+		sub {$sf->create(shift->begin(0));},
+		sub { my ($delay, $sf, $err, $res) = @_;
+			like( $err, qr/^No SObject Type defined/, 'create_nb error: empty call');
+			is($res, undef, 'create_nb error: correctly got no successful response');
+		}
+	)->catch(sub {
+		shift->ioloop->stop;
+		BAIL_OUT("Something went wrong in create: ".pop);
+	})->wait;
+	Mojo::IOLoop::Delay->new()->steps(
+		sub {$sf->create('foo',shift->begin(0));},
+		sub { my ($delay, $sf, $err, $res) = @_;
+			like( $err, qr/^Empty SObjects are not allowed/, 'create_nb error: invalid object');
+			is($res, undef, 'create_nb error: correctly got no successful response');
+		}
+	)->catch(sub {
+		shift->ioloop->stop;
+		BAIL_OUT("Something went wrong in create: ".pop);
+	})->wait;
+	Mojo::IOLoop::Delay->new()->steps(
 		sub {$sf->create('badObject',{empty=>'stuff'}, shift->begin(0));},
 		sub { my ($delay, $sf, $err, $res) = @_;
 			like( $err, qr/The requested resource does not exist/, 'create_nb error: invalid object type');
@@ -170,11 +206,22 @@ try {
 	})->wait;
 	Mojo::IOLoop::Delay->new()->steps(
 		sub {$sf->create({type=>'Account',Name=>'test',}, shift->begin(0));},
-		sub {
-			my ($delay, $sf, $err, $res) = @_;
+		sub { my ($delay, $sf, $err, $res) = @_;
 			is($err, undef, 'create_nb: correctly got no fault');
 			isa_ok($res, 'HASH', 'create_nb: got a hashref response');
 			is_deeply($res, $expected_result, "create_nb: got the right result");
+		}
+	)->catch(sub {
+		shift->ioloop->stop;
+		BAIL_OUT("Something went wrong in create: ".pop);
+	})->wait;
+	# attempt it when logins fail
+	$sf->_access_token('');
+	Mojo::IOLoop::Delay->new()->steps(
+		sub {$sf->create({type=>'Account',Name=>'test',}, shift->begin(0));},
+		sub { my ($delay, $sf, $err, $res) = @_;
+			like( $err, qr/404 Not Found/, 'create_nb error: bad login');
+			is($res, undef, 'create_nb error: bad login correctly got no successful response');
 		}
 	)->catch(sub {
 		shift->ioloop->stop;

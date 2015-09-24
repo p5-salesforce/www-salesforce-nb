@@ -59,4 +59,58 @@ is($sf->_path('invalid'),'/services/data/v33.0/','api_path: got the correct path
 	is_deeply($sf->_headers('soap'), $expected_soap, "headers: soap, not loggedin, no urls for host header");
 }
 
+# test error stringifier
+{
+	my $str;
+	#first param
+	$str = $sf->_error();
+	is($str,'',"_error: empty string");
+	$str = $sf->_error([]);
+	is($str,'',"_error: arrayref to empty string");
+	$str = $sf->_error({});
+	is($str,'500',"_error: empty hashref");
+	$str = $sf->_error({code=>404});
+	is($str,'404',"_error: hashref with code");
+	$str = $sf->_error({message=>'test'});
+	is($str,'500 test',"_error: hashref with message");
+	$str = $sf->_error({code=>404,message=>'test'});
+	is($str,'404 test',"_error: hashref with code and message");
+	#second param, nothing
+	$str = $sf->_error({code=>404,message=>'test'},'');
+	is($str,'404 test',"_error: hashref, empty string");
+	$str = $sf->_error({code=>404,message=>'test'},undef);
+	is($str,'404 test',"_error: hashref, undef");
+	#second param, code ref (garbage)
+	$str = $sf->_error({code=>404,message=>'test'},sub {});
+	is($str,'404 test',"_error: hashref, garbage");
+	#second param, arrayref
+	$str = $sf->_error({code=>404,message=>'test'},[]);
+	is($str,'404 test',"_error: hashref, empty arrayref");
+	$str = $sf->_error({code=>404,message=>'test'},['',undef]);
+	is($str,'404 test',"_error: hashref, arrayref of undef and empty strings");
+	$str = $sf->_error({code=>404,message=>'test'},["this","that"]);
+	is($str,'404 test',"_error: hashref, bad arrayref");
+	$str = $sf->_error({code=>404,message=>'test'},[{}]);
+	is($str,'404 test',"_error: hashref, arrayref with empty hashref");
+	$str = $sf->_error({code=>404,message=>'test'},[{errorCode=>'FOO'},{error=>'FOO'}]);
+	is($str,'404 test, FOO: , FOO: ',"_error: hashref, arrayref with hashref with errorCode");
+	$str = $sf->_error({code=>404,message=>'test'},[{message=>'FooBar'},{error_description=>'FooBar'}]);
+	is($str,'404 test, : FooBar, : FooBar',"_error: hashref, arrayref with hashref with message");
+	$str = $sf->_error({code=>404,message=>'test'},[{errorCode=>'FOO',message=>'FooBar'},{error=>'FOO',error_description=>'FooBar'}]);
+	is($str,'404 test, FOO: FooBar, FOO: FooBar',"_error: hashref, arrayref with hashref");
+	#second param, hashref
+	$str = $sf->_error({code=>404,message=>'test'},{});
+	is($str,'404 test',"_error: hashref, empty hashref");
+	$str = $sf->_error({code=>404,message=>'test'},{errorCode=>'FOO'});
+	is($str,'404 test, FOO: ',"_error: hashref, hashref with errorCode");
+	$str = $sf->_error({code=>404,message=>'test'},{error=>'FOO'});
+	is($str,'404 test, FOO: ',"_error: hashref, hashref with error");
+	$str = $sf->_error({code=>404,message=>'test'},{message=>'FooBar'});
+	is($str,'404 test, : FooBar',"_error: hashref, hashref with message");
+	$str = $sf->_error({code=>404,message=>'test'},{error_description=>'FooBar'});
+	is($str,'404 test, : FooBar',"_error: hashref, hashref with error_description");
+	$str = $sf->_error({code=>404,message=>'test'},{error=>'FOO',error_description=>'FooBar'});
+	is($str,'404 test, FOO: FooBar',"_error: hashref, hashref with both");
+
+}
 done_testing();

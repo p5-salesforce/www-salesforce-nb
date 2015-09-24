@@ -134,6 +134,8 @@ try {
 	like( $res, qr/The requested resource does not exist/, "describe: got correct error message on bad object name");
 	$res = try{return $sf->describe('')} catch {return $_};
 	like( $res, qr/An object is required to describe it/, "describe: got correct error message on empty string object");
+	$res = try{return $sf->describe({})} catch {return $_};
+	like( $res, qr/An object is required to describe it/, "describe: got correct error message on hashref");
 	$res = try{return $sf->describe(undef)} catch {return $_};
 	like( $res, qr/An object is required to describe it/, "describe: got correct error message on undef object");
 	$res = try{return $sf->describe_sobject('Something')} catch {return $_};
