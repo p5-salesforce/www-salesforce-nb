@@ -14,6 +14,7 @@ BEGIN {
 	$ENV{MOJO_REACTOR} = 'Mojo::Reactor::Poll';
 	use_ok( 'WWW::Salesforce' ) || BAIL_OUT("Can't use WWW::Salesforce");
 }
+my $ERROR_OUT = 0;
 my $DES_GLO = {
 	encoding => "UTF-8",
 	maxBatchSize => 200,
@@ -86,7 +87,11 @@ my $DESCRIBE = {
 };
 # Silence
 app->log->level('fatal');
-get '/services/data/v33.0/sobjects' => sub {return shift->render(json=>$DES_GLO)};
+get '/services/data/v33.0/sobjects' => sub {
+	my $c = shift;
+	return $c->render(status=>500,json=>[{message=>"Error in Communication",errorCode=>"UNKNOWN_ERROR"}]) if $ERROR_OUT;
+	return $c->render(json=>$DES_GLO)
+};
 get '/services/data/v33.0/sobjects/:type/describe' => sub {
 	my $c = shift;
 	my $type = $c->stash('type') || '';
@@ -267,4 +272,17 @@ Mojo::IOLoop::Delay->new()->steps(
 	BAIL_OUT("Something went wrong in describe_global-nb: ".pop);
 })->wait;
 
+$ERROR_OUT = 1;
+$sf->_access_token('123455663452abacbabababababababanenenenene');
+like( (try{return $sf->describe_global()} catch {return $_}), qr/500 Internal Server Error/, "describe_global: error");
+Mojo::IOLoop::Delay->new()->steps(
+	sub {$sf->describe_global(shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		like( $err, qr/500 Internal Server Error/, 'describe_global-nb error: bad login');
+		is($res, undef, 'describe_global-nb error: bad login correctly got no successful response');
+	}
+)->catch(sub {
+	shift->ioloop->stop;
+	BAIL_OUT("Something went wrong in describe_global-nb: ".pop);
+})->wait;
 done_testing;

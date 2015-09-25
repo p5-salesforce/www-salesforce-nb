@@ -176,7 +176,6 @@ sub describe_global {
 		$self->login(); # handles renewing the auth token if necessary
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects");
 		my $tx = $self->ua->get($url, $self->_headers());
-		# uncoverable branch true
 		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
 		return $tx->res->json;
 	}
@@ -188,7 +187,6 @@ sub describe_global {
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects");
 		$sf->ua->get($url, $sf->_headers(), sub {
 			my ($ua, $tx) = @_;
-			# uncoverable branch true
 			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
 			return $sf->$cb(undef,$tx->res->json);
 		});
