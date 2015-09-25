@@ -210,8 +210,7 @@ sub limits {
 	# non-blocking request
 	$self->login(sub {
 		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,[]) if $err;
-		return $sf->$cb('No login token',[]) unless $token;
+		return $sf->$cb($err,undef) if $err;
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("limits");
 		$sf->ua->get($url, $sf->_headers(), sub {
 			my ($ua, $tx) = @_;
