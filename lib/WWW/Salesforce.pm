@@ -276,22 +276,25 @@ sub query {
 # grab a single object
 sub retrieve {
 	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
-	my ( $self, $object, $id, $fields ) = @_;
-	$fields = ($fields && ref($fields) eq 'ARRAY')? $fields: undef;
-	unless ($object) {
-		die( "An SObject type is required for retrieve()" ) unless $cb;
-		$self->$cb('An SObject type is required for retrieve()',[]) if $cb;
+	my ( $self, $type, $id, $fields ) = @_;
+	$type = undef unless $type && !ref($type);
+	$id = undef unless $id && !ref($id) && $id =~ /^[a-zA-Z0-9]{15,18}$/;
+	$fields = undef unless $fields && ref($fields) eq 'ARRAY';
+
+	unless ($type) {
+		die( "No SObject Type defined" ) unless $cb;
+		$self->$cb('No SObject Type defined',undef);
 		return $self;
 	}
-	unless ($id && $id =~ /^[a-zA-Z0-9]+$/) {
-		die( "An SObject ID is required for retrieve()" ) unless $cb;
-		$self->$cb('An SObject ID is required for retrieve()',[]) if $cb;
+	unless ($id) {
+		die( "No SObject ID provided." ) unless $cb;
+		$self->$cb('No SObject ID provided.',undef);
 		return $self;
 	}
 	#blocking request
 	unless ($cb) {
 		$self->login();
-		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$object/$id");
+		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type/$id");
 		$url->query('fields'=> join(', ', @{$fields})) if $fields;
 		my $tx = $self->ua->get( $url, $self->_headers() );
 		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
@@ -301,9 +304,8 @@ sub retrieve {
 	# non-blocking request
 	$self->login(sub {
 		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,[]) if $err;
-		return $sf->$cb('No login token',[]) unless $token;
-		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$object/$id");
+		return $sf->$cb($err,undef) if $err;
+		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$type/$id");
 		$url->query('fields'=> join(', ', @{$fields})) if $fields;
 		$sf->ua->get($url, $sf->_headers(), sub {
 			my ($ua, $tx) = @_;
