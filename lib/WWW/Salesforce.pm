@@ -223,9 +223,9 @@ sub limits {
 
 # run a query
 sub query {
-	my ($self, $query, $cb) = @_;
-	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
-	unless ($query) {
+	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
+	my ($self, $query ) = @_;
+	unless ($query && !ref($query)) {
 		die 'A query is required' unless $cb;
 		$self->$cb('A query is required',[]);
 		return $self;
@@ -240,7 +240,7 @@ sub query {
 		while(1) {
 			die $self->_error($tx->error, $tx->res->json) unless $tx->success;
 			my $json = $tx->res->json;
-			last unless $json && $json->{records};
+			last unless exists($json->{records}) && ref($json->{records}) eq 'ARRAY';
 			push @{$results}, @{$json->{records}};
 
 			last if $json->{done};
@@ -254,8 +254,7 @@ sub query {
 	# non-blocking request
 	$self->login(sub {
 		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,[]) if $err;
-		return $sf->$cb('No login token',[]) unless $token;
+		return $sf->$cb($err,undef) if $err;
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path('query/');
 		my $results = [];
 		my $results_nb;
@@ -263,6 +262,7 @@ sub query {
 			my ($ua,$tx) = @_;
 			return $sf->$cb($sf->_error($tx->error, $tx->res->json),$results) unless $tx->success;
 			my $data = $tx->res->json;
+			return $sf->$cb(undef,$results) unless exists($data->{records}) && ref($data->{records}) eq 'ARRAY';
 			push @{$results}, @{$data->{records}};
 			return $sf->$cb(undef,$results) if $data->{done};
 			return $sf->$cb(undef,$results) unless $data->{nextRecordsUrl};
