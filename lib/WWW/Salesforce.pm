@@ -318,13 +318,9 @@ sub retrieve {
 
 # describe an object
 sub search {
-	my ($self, $sosl, $cb) = @_;
-	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
-	unless ($sosl) {
-		die 'An SOSL statement is required to search' unless $cb;
-		$self->$cb('An SOSL statement is required to search',undef);
-		return $self;
-	}
+	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
+	my ($self, $sosl) = @_;
+	$sosl = '' unless $sosl && !ref($sosl); # an empty SOSL statement returns a certain set of info
 
 	# blocking request
 	unless ( $cb ) {
@@ -339,8 +335,7 @@ sub search {
 	# non-blocking request
 	$self->login(sub {
 		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,[]) if $err;
-		return $sf->$cb('No login token',[]) unless $token;
+		return $sf->$cb($err,undef) if $err;
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("search/");
 		$url->query(q=>$sosl);
 		$sf->ua->get($url, $sf->_headers(), sub {
