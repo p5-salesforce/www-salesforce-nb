@@ -40,7 +40,7 @@ sub logout {
 	#blocking request
 	unless ( $cb ) {
 		my $tx = $self->ua->post($url, $self->_headers(), form =>{token=>$self->_access_token});
-		die $self->_error($tx->error, $tx->res->json||undef) unless $tx->success;
+		die $self->_error($tx) unless $tx->success;
 		$self->_instance_url(undef);
 		$self->_path(undef);
 		$self->_access_token(undef);
@@ -51,7 +51,7 @@ sub logout {
 	# non-blocking request
 	$self->ua->post($url, $self->_headers(), form =>{token=>$self->_access_token}, sub {
 		my ($ua, $tx) = @_;
-		return $self->$cb($self->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+		return $self->$cb($self->_error($tx),undef) unless $tx->success;
 		$self->_instance_url(undef);
 		$self->_path(undef);
 		$self->_access_token(undef);
@@ -75,7 +75,7 @@ sub _login_oauth2_up {
 	# blocking request
 	unless ($cb) {
 		my $tx = $self->ua->post($url, $self->_headers(), form => $form);
-		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		die $self->_error($tx) unless $tx->success;
 		my $data = $tx->res->json;
 		$self->_instance_url(Mojo::URL->new($data->{instance_url}));
 		$self->_access_token($data->{access_token});
@@ -86,7 +86,7 @@ sub _login_oauth2_up {
 	# non-blocking request
 	$self->ua->post($url, $self->_headers(), form => $form, sub {
 		my ($ua, $tx) = @_;
-		return $self->$cb($self->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+		return $self->$cb($self->_error($tx),undef) unless $tx->success;
 		my $data = $tx->res->json;
 		$self->_instance_url(Mojo::URL->new($data->{instance_url}));
 		$self->_access_token($data->{access_token});
@@ -115,7 +115,7 @@ sub _login_soap {
 
 	unless ( $cb ) {
 		my $tx = $self->ua->post($url, $self->_headers('soap'), $envelope);
-		die $self->_soap->error_string($tx->error, $tx->res->dom) unless $tx->success;
+		die $self->_error($tx) unless $tx->success;
 		my $data = $self->_soap->response_login($tx->res->dom);
 		$self->_instance_url(Mojo::URL->new($data->{serverUrl}));
 		$self->_access_token($data->{sessionId});
@@ -126,7 +126,7 @@ sub _login_soap {
 	$self->ua->post($url,$self->_headers('soap'), $envelope, sub {
 		my ($ua, $tx) = @_;
 		#use Data::Dumper; say Dumper $tx->res; exit(0);
-		return $self->$cb($self->_soap->error_string($tx->error, $tx->res->dom),undef) unless $tx->success;
+		return $self->$cb($self->_error($tx),undef) unless $tx->success;
 		my $data = $self->_soap->response_login($tx->res->dom);
 		$self->_instance_url(Mojo::URL->new($data->{serverUrl}));
 		$self->_access_token($data->{sessionId});

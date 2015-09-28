@@ -72,7 +72,7 @@ sub create {
 		$self->login();
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type");
 		my $tx = $self->ua->post($url, $self->_headers(), json => $object);
-		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		die $self->_error($tx) unless $tx->success;
 		return $tx->res->json;
 	}
 
@@ -83,7 +83,7 @@ sub create {
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$type");
 		$sf->ua->post($url, $sf->_headers(), json=>$object,sub {
 			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
 			return $sf->$cb(undef,$tx->res->json);
 		});
 	});
@@ -114,7 +114,7 @@ sub delete {
 		$self->login();
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type/$id");
 		my $tx = $self->ua->delete($url, $self->_headers());
-		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		die $self->_error($tx) unless $tx->success;
 		# on success, just return the following
 		return {id=>$id,success=>1,errors=>[]};
 	}
@@ -126,7 +126,7 @@ sub delete {
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$type/$id");
 		$sf->ua->delete($url, $sf->_headers(), sub {
 			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
 			return $sf->$cb(undef,{id=>$id,success=>1,errors=>[]});
 		});
 	});
@@ -149,7 +149,7 @@ sub describe {
 		$self->login(); # handles renewing the auth token if necessary
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$object/describe");
 		my $tx = $self->ua->get($url, $self->_headers());
-		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		die $self->_error($tx) unless $tx->success;
 		return $tx->res->json;
 	}
 
@@ -160,7 +160,7 @@ sub describe {
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$object/describe");
 		$sf->ua->get($url, $sf->_headers(), sub {
 			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
 			return $sf->$cb(undef,$tx->res->json);
 		});
 	});
@@ -176,7 +176,7 @@ sub describe_global {
 		$self->login(); # handles renewing the auth token if necessary
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects");
 		my $tx = $self->ua->get($url, $self->_headers());
-		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		die $self->_error($tx) unless $tx->success;
 		return $tx->res->json;
 	}
 
@@ -187,7 +187,7 @@ sub describe_global {
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects");
 		$sf->ua->get($url, $sf->_headers(), sub {
 			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
 			return $sf->$cb(undef,$tx->res->json);
 		});
 	});
@@ -203,7 +203,7 @@ sub limits {
 		$self->login(); # handles renewing the auth token if necessary
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("limits");
 		my $tx = $self->ua->get($url, $self->_headers());
-		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		die $self->_error($tx) unless $tx->success;
 		return $tx->res->json;
 	}
 
@@ -214,7 +214,7 @@ sub limits {
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("limits");
 		$sf->ua->get($url, $sf->_headers(), sub {
 			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
 			return $sf->$cb(undef,$tx->res->json);
 		});
 	});
@@ -238,7 +238,7 @@ sub query {
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path('query/');
 		my $tx = $self->ua->get( $url, $self->_headers(), form => { q => $query, } );
 		while(1) {
-			die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+			die $self->_error($tx) unless $tx->success;
 			my $json = $tx->res->json;
 			last unless exists($json->{records}) && ref($json->{records}) eq 'ARRAY';
 			push @{$results}, @{$json->{records}};
@@ -260,7 +260,7 @@ sub query {
 		my $results_nb;
 		$results_nb = sub {
 			my ($ua,$tx) = @_;
-			return $sf->$cb($sf->_error($tx->error, $tx->res->json),$results) unless $tx->success;
+			return $sf->$cb($sf->_error($tx),$results) unless $tx->success;
 			my $data = $tx->res->json;
 			return $sf->$cb(undef,$results) unless exists($data->{records}) && ref($data->{records}) eq 'ARRAY';
 			push @{$results}, @{$data->{records}};
@@ -297,7 +297,7 @@ sub retrieve {
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type/$id");
 		$url->query('fields'=> join(', ', @{$fields})) if $fields;
 		my $tx = $self->ua->get( $url, $self->_headers() );
-		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		die $self->_error($tx) unless $tx->success;
 		return $tx->res->json;
 	}
 
@@ -309,7 +309,7 @@ sub retrieve {
 		$url->query('fields'=> join(', ', @{$fields})) if $fields;
 		$sf->ua->get($url, $sf->_headers(), sub {
 			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
 			return $sf->$cb(undef,$tx->res->json);
 		});
 	});
@@ -328,7 +328,7 @@ sub search {
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("search/");
 		$url->query(q=>$sosl);
 		my $tx = $self->ua->get($url, $self->_headers());
-		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
+		die $self->_error($tx) unless $tx->success;
 		return $tx->res->json;
 	}
 
@@ -340,7 +340,7 @@ sub search {
 		$url->query(q=>$sosl);
 		$sf->ua->get($url, $sf->_headers(), sub {
 			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
+			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
 			return $sf->$cb(undef,$tx->res->json);
 		});
 	});
@@ -382,20 +382,19 @@ sub update {
 		$self->login();
 		my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type/$id");
 		my $tx = $self->ua->patch($url, $self->_headers(), json => $object);
-		die $self->_error($tx->error, $tx->res->json) unless $tx->success;
-		return $tx->res->json || {id=>$id,success=>1,errors=>[],};
+		die $self->_error($tx) unless $tx->success;
+		return {id=>$id,success=>1,errors=>[],};
 	}
 
 	# non-blocking request
 	$self->login(sub {
 		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,[]) if $err;
-		return $sf->$cb('No login token',[]) unless $token;
+		return $sf->$cb($err,undef) if $err;
 		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$type/$id");
 		$sf->ua->patch($url, $sf->_headers(), json=>$object,sub {
 			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx->error, $tx->res->json),undef) unless $tx->success;
-			return $sf->$cb(undef,($tx->res->json || {id=>$id,success=>1,errors=>[],}));
+			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
+			return $sf->$cb(undef,{id=>$id,success=>1,errors=>[],});
 		});
 	});
 	return $self;
@@ -403,31 +402,62 @@ sub update {
 }
 
 # create an error string
+# create an error string
 sub _error {
-	my ( $self, $error, $data ) = @_;
-	my $message = '';
-	if ( $error && ref($error) eq 'HASH' ) {
-		$message = $error->{code}||500;
-		my $emsg = $error->{message}||'';
-		$message .= " $emsg" if $emsg;
-	}
-	return $message unless $data;
+	my ($self, $tx) = @_;
+	return 'Unknown error.' unless $tx; # Shouldn't ever happen
+	return $tx unless ref($tx); # Just return the string if we were given one
 
-	if ( ref($data) eq 'HASH' ) {
-		my $ecode = $data->{errorCode}||$data->{error}||'';
-		my $emsg = $data->{message}||$data->{error_description}||'';
-		$message .= ", $ecode: $emsg" if $ecode || $emsg;
-		return $message;
+	return 'Invalid transaction object' unless (Scalar::Util::blessed($tx) && $tx->isa('Mojo::Transaction'));
+	return 'Transaction succeeded' unless $tx->error;
+
+	my $message = $tx->error->{code}||500;
+	$message .= " ".$tx->error->{message} if $tx->error->{message};
+
+	my $type = $tx->res->headers->content_type // '';
+	if ( $type =~ /application\/json/ ) {
+		if ( my $json = $tx->res->json ) {
+			if ( ref($json) eq 'ARRAY' ) {
+				for my $err ( @{$json} ) {
+					next unless $err && ref($err) eq 'HASH';
+					my $code = Mojo::Util::trim($err->{errorCode}||$err->{error}||'');
+					my $msg = Mojo::Util::trim($err->{message}||$err->{error_description}||'');
+					my $string = $code;
+					$string .= ': ' if $string && $msg;
+					$string .= $msg;
+					$message .= ", $string" if length $string;
+				}
+			}
+			else {
+				my $code = Mojo::Util::trim($json->{errorCode}||$json->{error}||'');
+				my $msg = Mojo::Util::trim($json->{message}||$json->{error_description}||'');
+				my $string = $code;
+				$string .= ': ' if $string && $msg;
+				$string .= $msg;
+				$message .= ", $string" if length $string;
+			}
+		}
 	}
-	return $message unless ref($data) eq 'ARRAY';
-	for my $err ( @{$data} ) {
-		next unless $err && ref($err) eq 'HASH';
-		my $ecode = $err->{errorCode}||$err->{error}||'';
-		my $emsg = $err->{message}||$err->{error_description}||'';
-		$message .= ", $ecode: $emsg" if $ecode || $emsg;
+	elsif( $type =~ /text\/xml/ ) {
+		my $dom = $tx->res->dom;
+		if ( $dom->at('soapenv\:Fault') ) {
+			my $code = $dom->at('soapenv\:Fault > faultcode');
+			my $msg = $dom->at('soapenv\:Fault > faultstring');
+			$code = $code? Mojo::Util::trim($code->text()||''): '';
+			$msg = $msg? Mojo::Util::trim($msg->text()||''): '';
+			my $string = $code;
+			$string .= ': ' if $string && $msg;
+			$string .= $msg;
+			$message .= ", $string" if length $string;
+		}
+	}
+	else {
+		my $body = Mojo::Util::trim($tx->res->body);
+		$message .= ", $body" if $body;
 	}
 	return $message;
 }
+
 
 # Get the headers we need to send each time
 sub _headers {

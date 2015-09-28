@@ -31,22 +31,6 @@ sub envelope_login {
 	return $dom;
 }
 
-sub error_string {
-	my ( $self, $error, $data ) = @_;
-	my $message = '';
-	if ( $error && ref($error) eq 'HASH' ) {
-		$message .= sprintf("%s %s: ", $error->{code} || "500", $error->{message} || '');
-	}
-	return '' unless $message;
-	# no need to traverse the data if there's no error.
-	if ( $data && Scalar::Util::blessed($data) && $data->isa('Mojo::DOM') ) {
-		if ( $data->at('faultcode') && $data->at('faultstring') ) {
-			$message .= sprintf("%s: %s", $data->at('faultcode')->text(),$data->at('faultstring')->text());
-		}
-	}
-	return $message;
-}
-
 sub response_login {
 	my ( $self, $dom ) = @_;
 	my $info = {userInfo=>{},};
