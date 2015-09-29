@@ -333,17 +333,26 @@ sub search {
 	}
 
 	# non-blocking request
-	$self->login(sub {
-		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,undef) if $err;
-		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("search/");
-		$url->query(q=>$sosl);
-		$sf->ua->get($url, $sf->_headers(), sub {
-			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
-			return $sf->$cb(undef,$tx->res->json);
-		});
-	});
+	Mojo::IOLoop->delay(
+		sub { $self->login(shift->begin) },
+		sub {
+			my ( $delay, $err, $token ) = @_;
+			return $self->$cb($err,undef) if $err;
+			my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("search/");
+			$url->query(q=>$sosl);
+			$self->ua->get($url, $self->_headers(), $delay->begin);
+		},
+		sub {
+			my ($delay, $tx) = @_;
+			return $self->$cb($self->_error($tx),undef) unless $tx->success;
+			return $self->$cb(undef,$tx->res->json);
+		}
+	)->catch(sub {
+		# uncoverable subroutine
+		my ($delay, $err) = @_; # uncoverable statement
+		$delay->ioloop->stop; # uncoverable statement
+		return $self->$cb($err, undef); # uncoverable statement
+	})->wait;
 	return $self;
 }
 
@@ -402,7 +411,6 @@ sub update {
 }
 
 # create an error string
-# create an error string
 sub _error {
 	my ($self, $tx) = @_;
 	return 'Unknown error.' unless $tx; # Shouldn't ever happen
@@ -415,6 +423,7 @@ sub _error {
 	$message .= " ".$tx->error->{message} if $tx->error->{message};
 
 	my $type = $tx->res->headers->content_type // '';
+	return $message if ( $type =~ /html/ );
 	if ( $type =~ /application\/json/ ) {
 		if ( my $json = $tx->res->json ) {
 			if ( ref($json) eq 'ARRAY' ) {
@@ -457,7 +466,6 @@ sub _error {
 	}
 	return $message;
 }
-
 
 # Get the headers we need to send each time
 sub _headers {

@@ -37,13 +37,10 @@ get '/services/data/v33.0/search' => sub {
 	return $c->render(status=>401,json=>[{message=>"Session expired or invalid",errorCode=>"INVALID_SESSION_ID"}]) if $ERROR_OUT;
 	my $sosl = $c->param('q') || '';
 	$sosl = '' unless $sosl && !ref($sosl);
-	if ( !$sosl ) {
-		return $c->render(json=>$RES_EMPTY);
-	}
-	elsif ( $sosl eq $SOSL_MAL ) {
+	if ( $sosl && $sosl eq $SOSL_MAL ) {
 		return $c->render(status=>404,json=>[{errorCode=> "MALFORMED_SEARCH", message=>"No search term found. The search term must be enclosed in braces."}]);
 	}
-	elsif ( $sosl eq $SOSL ) {
+	elsif ( $sosl && $sosl eq $SOSL ) {
 		return $c->render(json=>$RES);
 	}
 	return $c->render(json=>$RES_EMPTY);
@@ -89,5 +86,56 @@ can_ok($sf, qw(search) );
 	is_deeply($res, $RES_EMPTY, "search: hashref call");
 	$res = try {$sf->search('')} catch {$_};
 	is_deeply($res, $RES_EMPTY, "search: empty string call");
+	$res = try {$sf->search($SOSL)} catch {$_};
+	is_deeply($res, $RES, "search: Proper search and results");
 }
+
+# non-blocking errors
+Mojo::IOLoop->delay(
+	sub {$sf->search($SOSL_MAL, shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		like($err, qr/MALFORMED_SEARCH/, 'search-nb: malformed SOSL error');
+		is($res, undef, "search-nb: malformed SOSL empty result");
+	}
+)->catch(sub {
+	shift->ioloop->stop;
+	BAIL_OUT("Something went wrong in search-nb: ".pop);
+})->wait;
+$sf->_access_token('');
+Mojo::IOLoop->delay(
+	sub {$sf->search($SOSL_MAL, shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		is($err, '404 Not Found', 'search-nb: not logged in');
+		is($res, undef, "search-nb: not logged in");
+	}
+)->catch(sub {
+	shift->ioloop->stop;
+	BAIL_OUT("Something went wrong in search-nb: ".pop);
+})->wait;
+$sf->_access_token('123455663452abacbabababababababanenenenene');
+$ERROR_OUT=1;
+Mojo::IOLoop->delay(
+	sub {$sf->search($SOSL_MAL, shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		like($err, qr/INVALID_SESSION_ID/, 'search-nb: error on purpose');
+		is($res, undef, "search-nb: error on purpose");
+	}
+)->catch(sub {
+	shift->ioloop->stop;
+	BAIL_OUT("Something went wrong in search-nb: ".pop);
+})->wait;
+$ERROR_OUT=0;
+
+# successful search-nb
+Mojo::IOLoop->delay(
+	sub {$sf->search($SOSL, shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		is($err, undef, 'search-nb: success without error');
+		is_deeply($res, $RES, "search-nb: proper response");
+	}
+)->catch(sub {
+	shift->ioloop->stop;
+	BAIL_OUT("Something went wrong in search-nb: ".pop);
+})->wait;
+
 done_testing;
