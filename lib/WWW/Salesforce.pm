@@ -488,7 +488,7 @@ sub _error {
 			}
 		}
 	}
-	elsif( $type =~ /text\/xml/ ) {
+	elsif( $type =~ /xml/ ) {
 		my $dom = $tx->res->dom;
 		if ( $dom->at('soapenv\:Fault') ) {
 			my $code = $dom->at('soapenv\:Fault > faultcode');

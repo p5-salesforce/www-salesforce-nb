@@ -85,7 +85,21 @@ can_ok($sf, qw(login)) or BAIL_OUT("Something's wrong with the methods!");
 
 # test a bad login
 {
-	my $res = try {
+	my $res;
+	$res = try { $sf->login() } catch {$_};
+	isa_ok($res,'WWW::Salesforce',"login: empty call, proper response");
+	is( $sf->_access_token(), '123455663452abacbabababababababanenenenene', 'login: Empty call, proper response' );
+	$sf->_access_token('');
+	$res = try { $sf->login('') } catch {$_};
+	isa_ok($res,'WWW::Salesforce',"login: empty string call, proper response");
+	is( $sf->_access_token(), '123455663452abacbabababababababanenenenene', 'login: Empty string call, proper response' );
+	$sf->_access_token('');
+	$res = try { $sf->login({}) } catch {$_};
+	isa_ok($res,'WWW::Salesforce',"login: hashref call, proper response");
+	is( $sf->_access_token(), '123455663452abacbabababababababanenenenene', 'login: hashref call, proper response' );
+	$sf->_access_token('');
+
+	$res = try {
 		$sf->login_type('oauth2_up');
 		$sf->username('test2');
 		$sf->login();
@@ -129,4 +143,21 @@ try {
 	BAIL_OUT("Unable to login and out properly with soap: $_");
 };
 
+{
+	# non-blocking error
+	Mojo::IOLoop->delay(
+		sub {$sf->login_type('oauth2_up');$sf->username('test2');$sf->login(shift->begin(0));},
+		sub { my ($delay, $sf, $err, $res) = @_;
+			like( $err, qr/invalid_grant/, 'login-nb oauth2_up: error: invalid grant');
+			is($res, undef, 'login-nb oauth2_up: error: correctly got no successful response');
+		}
+	)->catch(sub {BAIL_OUT("Something went wrong in login_oath2_up-nb: ".pop)})->wait;
+	Mojo::IOLoop->delay(
+		sub {$sf->login_type('soap');$sf->username('test2');$sf->login(shift->begin(0));},
+		sub { my ($delay, $sf, $err, $res) = @_;
+			like( $err, qr/INVALID_LOGIN/, 'login-nb soap: error: invalid login');
+			is($res, undef, 'login-nb soap: error: correctly got no successful response');
+		}
+	)->catch(sub {BAIL_OUT("Something went wrong in login_soap-nb: ".pop)})->wait;
+}
 done_testing();

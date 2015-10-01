@@ -17,7 +17,7 @@ sub login {
 		Mojo::IOLoop->next_tick(sub { $self->$cb(undef, $self->_access_token) }) if $cb;
 		return $self;
 	}
-	my $type = $self->login_type() || 'oauth2_up';
+	my $type = $self->login_type();
 	return $self->_login_soap($cb) if $type eq 'soap';
 	return $self->_login_oauth2_up($cb)
 }
