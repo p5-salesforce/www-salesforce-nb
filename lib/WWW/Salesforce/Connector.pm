@@ -8,17 +8,13 @@ use WWW::Salesforce::SOAP;
 
 use Moo::Role;
 use 5.010;
-has '_access_token' => (is=>'rw',default=>'');
-has '_access_time' => (is=>'rw',lazy=>1,default=>sub{time()});
-has '_instance_url' => (is => 'rw', default => '');
-has '_soap' => (is => 'ro',required => 1,default => sub {WWW::Salesforce::SOAP->new();},);
 
 # attempt a login to Salesforce to obtain a token
 sub login {
-	my ($self, $cb) = @_;
-	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
+	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
+	my ($self,$username,$password) = @_;
 	unless ( $self->_login_required ) {
-		$self->$cb(undef, $self->_access_token) if $cb;
+		Mojo::IOLoop->next_tick(sub { $self->$cb(undef, $self->_access_token) }) if $cb;
 		return $self;
 	}
 	my $type = $self->login_type() || 'oauth2_up';
@@ -27,11 +23,11 @@ sub login {
 }
 # log out of salesforce and invalidate the token we're using
 sub logout {
-	my ($self,$cb) = @_;
-	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
+	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
+	my $self = shift;
 	if ( $self->_login_required ) {
 		# we don't need to logout
-		$self->$cb(undef,1) if $cb;
+		Mojo::IOLoop->next_tick(sub { $self->$cb(undef,1) }) if $cb;
 		return $self;
 	}
 	my $headers = $self->_headers();
@@ -49,16 +45,21 @@ sub logout {
 		return $self;
 	}
 	# non-blocking request
-	$self->ua->post($url, $self->_headers(), form =>{token=>$self->_access_token}, sub {
-		my ($ua, $tx) = @_;
-		return $self->$cb($self->_error($tx),undef) unless $tx->success;
-		$self->_instance_url(undef);
-		$self->_path(undef);
-		$self->_access_token(undef);
-		$self->_access_time(0);
-		$self->ua->cookie_jar->empty();
-		return $self->$cb(undef, 1);
-	});
+	Mojo::IOLoop->delay(
+		sub { $self->ua->post($url, $self->_headers(), form =>{token=>$self->_access_token}, shift->begin); },
+		sub {
+			my ($delay, $tx) = @_;
+			return $self->$cb($self->_error($tx),undef) unless $tx->success;
+			$self->_instance_url(undef);
+			$self->_path(undef);
+			$self->_access_token(undef);
+			$self->_access_time(0);
+			$self->ua->cookie_jar->empty();
+			return $self->$cb(undef, 1);
+		}
+	)->catch(sub {
+		return $self->$cb(pop);
+	})->wait;
 	return $self;
 }
 

@@ -81,52 +81,6 @@ my $sf = try {
 isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
 
 # Test attributes
-can_ok($sf, qw(login)) or BAIL_OUT("Something's wrong with the methods!");
-
-# test a bad login
-{
-	my $res = try {
-		$sf->login_type('oauth2_up');
-		$sf->username('test2');
-		$sf->login();
-	}
-	catch {
-		$_;
-	};
-	like($res, qr/invalid_grant/, 'oauth2 login error: got proper error message');
-
-	$res = try {
-		$sf->login_type('soap');
-		$sf->username('test2');
-		$sf->login();
-	}
-	catch {
-		$_;
-	};
-	like($res, qr/INVALID_LOGIN/, 'soap login error: got proper error message');
-}
-
-# OATH2_UP Test Login attempt
-try {
-	$sf->login_type('oauth2_up');
-	$sf->username('test');
-	$sf->login();
-	is($sf->_access_token(), '123455663452abacbabababababababanenenenene', 'login: oauth2_up: got the right access token');
-	$sf->logout();
-	is($sf->_access_token(), undef, 'logout: oauth2_up: cleared up our login');
-} catch {
-	BAIL_OUT("Unable to login and out properly with oauth2_up: $_");
-};
-
-# SOAP login
-try {
-	$sf->login_type('soap');
-	$sf->login();
-	is($sf->_access_token(), '123455663452abacbabababababababanenenenene', 'login: soap: got the right access token');
-	$sf->logout();
-	is($sf->_access_token(), undef, 'logout: soap: cleared up our login');
-} catch {
-	BAIL_OUT("Unable to login and out properly with soap: $_");
-};
+can_ok($sf, qw(logout)) or BAIL_OUT("Something's wrong with the methods!");
 
 done_testing();

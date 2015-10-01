@@ -13,6 +13,10 @@ with 'WWW::Salesforce::Connector';
 our $VERSION = '0.009';
 
 # salesforce login attributes
+has '_access_token' => (is=>'rw',default=>'');
+has '_access_time' => (is=>'rw',lazy=>1,default=>sub{time()});
+has '_instance_url' => (is => 'rw', default => '');
+has '_soap' => (is => 'ro',required => 1,default => sub {WWW::Salesforce::SOAP->new();},);
 has consumer_key => (is =>'rw',default=>'');
 has consumer_secret => (is =>'rw',default=>'');
 has login_type => (
@@ -60,12 +64,12 @@ sub create {
 	# we have now cleaned up the object and hopefully have a type.
 	unless ( $type ) {
 		die "No SObject Type defined." unless $cb;
-		$self->$cb("No SObject Type defined.", undef);
+		Mojo::IOLoop->next_tick(sub { $self->$cb("No SObject Type defined.") });
 		return $self;
 	}
 	unless ( scalar(keys(%$object)) ) {
 		die "Empty SObjects are not allowed." unless $cb;
-		$self->$cb("Empty SObjects are not allowed.",undef);
+		Mojo::IOLoop->next_tick(sub { $self->$cb("Empty SObjects are not allowed.") });
 		return $self;
 	}
 	# blocking request
@@ -107,12 +111,12 @@ sub delete {
 
 	unless ( $type ) {
 		die "No SObject Type defined." unless $cb;
-		$self->$cb("No SObject Type defined.", undef);
+		Mojo::IOLoop->next_tick(sub { $self->$cb("No SObject Type defined.") });
 		return $self;
 	}
 	unless ( $id ) {
 		die "No SObject ID provided." unless $cb;
-		$self->$cb("No SObject ID provided.", undef);
+		Mojo::IOLoop->next_tick(sub { $self->$cb("No SObject ID provided.") });
 		return $self;
 	}
 
@@ -154,7 +158,7 @@ sub describe {
 	$object = ($object && !ref($object))?$object:undef;
 	unless ($object) {
 		die 'An object is required to describe it' unless $cb;
-		$self->$cb('An object is required to describe it',undef);
+		Mojo::IOLoop->next_tick(sub { $self->$cb('An object is required to describe it') });
 		return $self;
 	}
 
@@ -259,7 +263,7 @@ sub query {
 	my ($self, $query ) = @_;
 	unless ($query && !ref($query)) {
 		die 'A query is required' unless $cb;
-		$self->$cb('A query is required',[]);
+		Mojo::IOLoop->next_tick(sub { $self->$cb('A query is required',[]) });
 		return $self;
 	}
 
@@ -315,12 +319,12 @@ sub retrieve {
 
 	unless ($type) {
 		die( "No SObject Type defined" ) unless $cb;
-		$self->$cb('No SObject Type defined',undef);
+		Mojo::IOLoop->next_tick(sub { $self->$cb('No SObject Type defined') });
 		return $self;
 	}
 	unless ($id) {
 		die( "No SObject ID provided." ) unless $cb;
-		$self->$cb('No SObject ID provided.',undef);
+		Mojo::IOLoop->next_tick(sub { $self->$cb('No SObject ID provided.') });
 		return $self;
 	}
 	#blocking request
@@ -408,12 +412,12 @@ sub update { # [type,id],object,[cb]
 	# we have now cleaned up the object and hopefully have a type and Id.
 	unless ( $type && !ref($type) ) {
 		die "No SObject Type defined." unless $cb;
-		$self->$cb("No SObject Type defined.", undef);
+		Mojo::IOLoop->next_tick(sub { $self->$cb("No SObject Type defined.") });
 		return $self;
 	}
 	unless ( $id && !ref($id) && $id =~ /^[a-zA-Z0-9]{15,18}$/ ) {
 		die "No SObject ID provided." unless $cb;
-		$self->$cb("No SObject ID provided.", undef);
+		Mojo::IOLoop->next_tick(sub { $self->$cb("No SObject ID provided.") });
 		return $self;
 	}
 

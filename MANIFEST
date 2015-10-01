@@ -10,6 +10,7 @@ INSTALL
 README.md
 t/00-basics.t
 t/01-login.t
+t/02-logout.t
 t/10-rest_create.t
 t/11-rest_describe.t
 t/12-rest_delete.t
