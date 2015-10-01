@@ -1,7 +1,6 @@
 use Mojo::Base -strict;
 use Test::More;
-use Mojo::IOLoop::Delay;
-use Mojo::JSON;
+use Mojo::IOLoop;
 use Mojolicious::Lite;
 use Try::Tiny;
 use v5.10;
@@ -183,72 +182,58 @@ can_ok($sf, qw(retrieve) );
 }
 
 # non-blocking successful
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->retrieve('Account', $ID,shift->begin(0))},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		is($err,undef, 'retrieve-nb: successful - no errors');
 		is_deeply($res,$RECORD, "retrieve-nb: correct no sobject type" )
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in retrieve-nb: ".pop);
-})->wait;
-Mojo::IOLoop::Delay->new()->steps(
+)->catch(sub {BAIL_OUT("Something went wrong in retrieve-nb: ".pop)})->wait;
+
+Mojo::IOLoop->delay(
 	sub {$sf->retrieve('Account', $ID,$FIELDS, shift->begin(0))},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		is($err,undef, 'retrieve-nb: successful - no errors with FIELDS');
 		is_deeply($res,$RECORD_FIELDS, "retrieve-nb: correct no sobject type with FIELDS" )
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in retrieve-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in retrieve-nb: ".pop)})->wait;
 
 #non-blocking Errors
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->retrieve('', $ID,shift->begin(0))},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like($err,qr/No SObject Type defined/, 'retrieve-nb error: no sobject type');
 		is($res,undef, "retrieve-nb: correct no sobject type" )
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in retrieve-nb: ".pop);
-})->wait;
-Mojo::IOLoop::Delay->new()->steps(
+)->catch(sub {BAIL_OUT("Something went wrong in retrieve-nb: ".pop)})->wait;
+
+Mojo::IOLoop->delay(
 	sub {$sf->retrieve('Type', '',shift->begin(0))},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like($err,qr/No SObject ID provided/, 'retrieve-nb error: no sobject id');
 		is($res,undef, "retrieve-nb: no sobject id" )
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in retrieve-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in retrieve-nb: ".pop)})->wait;
+
 $ERROR_OUT = 1;
 like( (try{return $sf->retrieve('Account', $ID)} catch {return $_}), qr/401/, "retrieve: error out.");
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->retrieve('Account', $ID,shift->begin(0))},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like($err,qr/401/, 'retrieve-nb error: correct error');
 		is($res,undef, "retrieve-nb: correct no response" )
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in retrieve-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in retrieve-nb: ".pop)})->wait;
 $ERROR_OUT=0;
 
 $sf->_access_token('');
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->retrieve('Account', $ID,shift->begin(0))},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like($err,qr/404/, 'retrieve-nb error: correct not logged in error');
 		is($res,undef, "retrieve-nb: correct not logged in no response" )
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in retrieve-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in retrieve-nb: ".pop)})->wait;
 $sf->_access_token('123455663452abacbabababababababanenenenene');
+
 done_testing;

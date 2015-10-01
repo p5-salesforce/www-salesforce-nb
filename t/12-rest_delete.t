@@ -1,7 +1,6 @@
 use Mojo::Base -strict;
 use Test::More;
-use Mojo::IOLoop::Delay;
-use Mojo::JSON;
+use Mojo::IOLoop;
 use Mojolicious::Lite;
 use Try::Tiny;
 use v5.10;
@@ -143,43 +142,34 @@ my $expected={id=>$ID,success=>1,errors=>[],};
 }
 
 # non-blocking error
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->delete('badObject',$ID, shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like( $err, qr/The requested resource does not exist/, 'delete-nb error: invalid object type');
 		is($res, undef, 'delete-nb error: correctly got no successful response');
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in delete-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
 
 # non-blocking error
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->delete('',$ID, shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like( $err, qr/No SObject Type defined/, 'delete-nb error: invalid object type');
 		is($res, undef, 'delete-nb error: correctly got no successful response');
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in delete-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
 
 # non-blocking error
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->delete('something','', shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like( $err, qr/No SObject ID provided/, 'delete-nb error: invalid object id');
 		is($res, undef, 'delete-nb error: correctly got no successful response');
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in delete-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
 
 #non-blocking success
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->delete('Account',$ID, shift->begin(0));},
 	sub {
 		my ($delay, $sf, $err, $res) = @_;
@@ -187,22 +177,16 @@ Mojo::IOLoop::Delay->new()->steps(
 		isa_ok($res, 'HASH', 'delete-nb: got a hashref response');
 		is_deeply($res, $expected, "delete-nb: got the right result");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in delete-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
 
 # attempt it when logins fail
 $sf->_access_token('');
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->delete('Account',$ID, shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like( $err, qr/404 Not Found/, 'delete-nb error: bad login');
 		is($res, undef, 'delete-nb error: bad login correctly got no successful response');
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in delete-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
 
 done_testing;

@@ -1,7 +1,6 @@
 use Mojo::Base -strict;
 use Test::More;
-use Mojo::IOLoop::Delay;
-use Mojo::JSON;
+use Mojo::IOLoop;
 use Mojolicious::Lite;
 use Try::Tiny;
 use v5.10;
@@ -173,60 +172,43 @@ try {
 };
 
 # non-blocking errors and successes
-{
-	Mojo::IOLoop::Delay->new()->steps(
-		sub {$sf->create(shift->begin(0));},
-		sub { my ($delay, $sf, $err, $res) = @_;
-			like( $err, qr/^No SObject Type defined/, 'create_nb error: empty call');
-			is($res, undef, 'create_nb error: correctly got no successful response');
-		}
-	)->catch(sub {
-		shift->ioloop->stop;
-		BAIL_OUT("Something went wrong in create: ".pop);
-	})->wait;
-	Mojo::IOLoop::Delay->new()->steps(
-		sub {$sf->create('foo',shift->begin(0));},
-		sub { my ($delay, $sf, $err, $res) = @_;
-			like( $err, qr/^Empty SObjects are not allowed/, 'create_nb error: invalid object');
-			is($res, undef, 'create_nb error: correctly got no successful response');
-		}
-	)->catch(sub {
-		shift->ioloop->stop;
-		BAIL_OUT("Something went wrong in create: ".pop);
-	})->wait;
-	Mojo::IOLoop::Delay->new()->steps(
-		sub {$sf->create('badObject',{empty=>'stuff'}, shift->begin(0));},
-		sub { my ($delay, $sf, $err, $res) = @_;
-			like( $err, qr/The requested resource does not exist/, 'create_nb error: invalid object type');
-			is($res, undef, 'create_nb error: correctly got no successful response');
-		}
-	)->catch(sub {
-		shift->ioloop->stop;
-		BAIL_OUT("Something went wrong in create: ".pop);
-	})->wait;
-	Mojo::IOLoop::Delay->new()->steps(
-		sub {$sf->create({type=>'Account',Name=>'test',}, shift->begin(0));},
-		sub { my ($delay, $sf, $err, $res) = @_;
-			is($err, undef, 'create_nb: correctly got no fault');
-			isa_ok($res, 'HASH', 'create_nb: got a hashref response');
-			is_deeply($res, $expected_result, "create_nb: got the right result");
-		}
-	)->catch(sub {
-		shift->ioloop->stop;
-		BAIL_OUT("Something went wrong in create: ".pop);
-	})->wait;
-	# attempt it when logins fail
-	$sf->_access_token('');
-	Mojo::IOLoop::Delay->new()->steps(
-		sub {$sf->create({type=>'Account',Name=>'test',}, shift->begin(0));},
-		sub { my ($delay, $sf, $err, $res) = @_;
-			like( $err, qr/404 Not Found/, 'create_nb error: bad login');
-			is($res, undef, 'create_nb error: bad login correctly got no successful response');
-		}
-	)->catch(sub {
-		shift->ioloop->stop;
-		BAIL_OUT("Something went wrong in create: ".pop);
-	})->wait;
-}
+Mojo::IOLoop->delay(
+	sub {$sf->create(shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		like( $err, qr/^No SObject Type defined/, 'create_nb error: empty call');
+		is($res, undef, 'create_nb error: correctly got no successful response');
+	}
+)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
+Mojo::IOLoop->delay(
+	sub {$sf->create('foo',shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		like( $err, qr/^Empty SObjects are not allowed/, 'create_nb error: invalid object');
+		is($res, undef, 'create_nb error: correctly got no successful response');
+	}
+)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
+Mojo::IOLoop->delay(
+	sub {$sf->create('badObject',{empty=>'stuff'}, shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		like( $err, qr/The requested resource does not exist/, 'create_nb error: invalid object type');
+		is($res, undef, 'create_nb error: correctly got no successful response');
+	}
+)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
+Mojo::IOLoop->delay(
+	sub {$sf->create({type=>'Account',Name=>'test',}, shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		is($err, undef, 'create_nb: correctly got no fault');
+		isa_ok($res, 'HASH', 'create_nb: got a hashref response');
+		is_deeply($res, $expected_result, "create_nb: got the right result");
+	}
+)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
+# attempt it when logins fail
+$sf->_access_token('');
+Mojo::IOLoop->delay(
+	sub {$sf->create({type=>'Account',Name=>'test',}, shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		like( $err, qr/404 Not Found/, 'create_nb error: bad login');
+		is($res, undef, 'create_nb error: bad login correctly got no successful response');
+	}
+)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
 
 done_testing;

@@ -1,7 +1,6 @@
 use Mojo::Base -strict;
 use Test::More;
-use Mojo::IOLoop::Delay;
-use Mojo::JSON;
+use Mojo::IOLoop;
 use Mojolicious::Lite;
 use Try::Tiny;
 use v5.10;
@@ -133,19 +132,16 @@ can_ok($sf, qw(update) );
 }
 
 # non-blocking error
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->update('badObject',$ID,{Name=>'bar'}, shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like( $err, qr/The requested resource does not exist/, 'update-nb error: invalid object type');
 		is($res, undef, 'update-nb error: correctly got no successful response');
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in update-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
 
 #non-blocking success
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->update('Account',$ID, {Name=>'bar'}, shift->begin(0));},
 	sub {
 		my ($delay, $sf, $err, $res) = @_;
@@ -153,9 +149,6 @@ Mojo::IOLoop::Delay->new()->steps(
 		isa_ok($res, 'HASH', 'update-nb: got a hashref response');
 		is_deeply($res, {id=>$ID,success=>1,errors=>[],}, "update-nb: got the right result");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in update-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
 
 done_testing;

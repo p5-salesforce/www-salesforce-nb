@@ -1,6 +1,7 @@
 package WWW::Salesforce;
 
 use Moo;
+use Mojo::IOLoop;
 use Mojo::URL;
 use Mojo::UserAgent;
 use strictures 2;
@@ -77,16 +78,22 @@ sub create {
 	}
 
 	# non-blocking request
-	$self->login(sub {
-		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,undef) if $err;
-		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$type");
-		$sf->ua->post($url, $sf->_headers(), json=>$object,sub {
-			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
-			return $sf->$cb(undef,$tx->res->json);
-		});
-	});
+	Mojo::IOLoop->delay(
+		sub { $self->login(shift->begin) },
+		sub {
+			my ( $delay, $err, $token ) = @_;
+			return $self->$cb($err,undef) if $err;
+			my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type");
+			$self->ua->post($url, $self->_headers(), json=>$object, $delay->begin);
+		},
+		sub {
+			my ($delay, $tx) = @_;
+			return $self->$cb($self->_error($tx),undef) unless $tx->success;
+			return $self->$cb(undef,$tx->res->json);
+		}
+	)->catch(sub {
+		return $self->$cb(pop); # uncoverable statement
+	})->wait;
 	return $self;
 }
 
@@ -120,16 +127,23 @@ sub delete {
 	}
 
 	# non-blocking request
-	$self->login(sub {
-		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,) if $err;
-		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$type/$id");
-		$sf->ua->delete($url, $sf->_headers(), sub {
-			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
-			return $sf->$cb(undef,{id=>$id,success=>1,errors=>[]});
-		});
-	});
+	Mojo::IOLoop->delay(
+		sub { $self->login(shift->begin) },
+		sub {
+			my ( $delay, $err, $token ) = @_;
+			return $self->$cb($err,undef) if $err;
+			my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type/$id");
+			$self->ua->delete($url, $self->_headers(), $delay->begin);
+		},
+		sub {
+			my ($delay, $tx) = @_;
+			return $self->$cb($self->_error($tx),undef) unless $tx->success;
+			return $self->$cb(undef,{id=>$id,success=>1,errors=>[]});
+		}
+	)->catch(sub {
+		return $self->$cb(pop); # uncoverable statement
+	})->wait;
+	return $self;
 }
 
 # describe an object
@@ -154,16 +168,22 @@ sub describe {
 	}
 
 	# non-blocking request
-	$self->login(sub {
-		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,undef) if $err;
-		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$object/describe");
-		$sf->ua->get($url, $sf->_headers(), sub {
-			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
-			return $sf->$cb(undef,$tx->res->json);
-		});
-	});
+	Mojo::IOLoop->delay(
+		sub { $self->login(shift->begin) },
+		sub {
+			my ( $delay, $err, $token ) = @_;
+			return $self->$cb($err,undef) if $err;
+			my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$object/describe");
+			$self->ua->get($url, $self->_headers(), $delay->begin);
+		},
+		sub {
+			my ($delay, $tx) = @_;
+			return $self->$cb($self->_error($tx),undef) unless $tx->success;
+			return $self->$cb(undef,$tx->res->json);
+		}
+	)->catch(sub {
+		return $self->$cb(pop); # uncoverable statement
+	})->wait;
 	return $self;
 }
 
@@ -181,16 +201,22 @@ sub describe_global {
 	}
 
 	# non-blocking request
-	$self->login(sub {
-		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,undef) if $err;
-		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects");
-		$sf->ua->get($url, $sf->_headers(), sub {
-			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
-			return $sf->$cb(undef,$tx->res->json);
-		});
-	});
+	Mojo::IOLoop->delay(
+		sub { $self->login(shift->begin) },
+		sub {
+			my ( $delay, $err, $token ) = @_;
+			return $self->$cb($err,undef) if $err;
+			my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects");
+			$self->ua->get($url, $self->_headers(),$delay->begin);
+		},
+		sub {
+			my ($delay, $tx) = @_;
+			return $self->$cb($self->_error($tx),undef) unless $tx->success;
+			return $self->$cb(undef,$tx->res->json);
+		}
+	)->catch(sub {
+		return $self->$cb(pop); # uncoverable statement
+	})->wait;
 	return $self;
 }
 
@@ -208,16 +234,22 @@ sub limits {
 	}
 
 	# non-blocking request
-	$self->login(sub {
-		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,undef) if $err;
-		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("limits");
-		$sf->ua->get($url, $sf->_headers(), sub {
-			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
-			return $sf->$cb(undef,$tx->res->json);
-		});
-	});
+	Mojo::IOLoop->delay(
+		sub { $self->login(shift->begin) },
+		sub {
+			my ( $delay, $err, $token ) = @_;
+			return $self->$cb($err,undef) if $err;
+			my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("limits");
+			$self->ua->get($url, $self->_headers(), $delay->begin);
+		},
+		sub {
+			my ($delay, $tx) = @_;
+			return $self->$cb($self->_error($tx),undef) unless $tx->success;
+			return $self->$cb(undef,$tx->res->json);
+		}
+	)->catch(sub {
+		return $self->$cb(pop); # uncoverable statement
+	})->wait;
 	return $self;
 }
 
@@ -302,17 +334,23 @@ sub retrieve {
 	}
 
 	# non-blocking request
-	$self->login(sub {
-		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,undef) if $err;
-		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$type/$id");
-		$url->query('fields'=> join(', ', @{$fields})) if $fields;
-		$sf->ua->get($url, $sf->_headers(), sub {
-			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
-			return $sf->$cb(undef,$tx->res->json);
-		});
-	});
+	Mojo::IOLoop->delay(
+		sub { $self->login(shift->begin) },
+		sub {
+			my ( $delay, $err, $token ) = @_;
+			return $self->$cb($err,undef) if $err;
+			my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type/$id");
+			$url->query('fields'=> join(', ', @{$fields})) if $fields;
+			$self->ua->get($url, $self->_headers(), $delay->begin);
+		},
+		sub {
+			my ($delay, $tx) = @_;
+			return $self->$cb($self->_error($tx),undef) unless $tx->success;
+			return $self->$cb(undef,$tx->res->json);
+		}
+	)->catch(sub {
+		return $self->$cb(pop); # uncoverable statement
+	})->wait;
 	return $self;
 }
 
@@ -348,10 +386,7 @@ sub search {
 			return $self->$cb(undef,$tx->res->json);
 		}
 	)->catch(sub {
-		# uncoverable subroutine
-		my ($delay, $err) = @_; # uncoverable statement
-		$delay->ioloop->stop; # uncoverable statement
-		return $self->$cb($err, undef); # uncoverable statement
+		return $self->$cb(pop); # uncoverable statement
 	})->wait;
 	return $self;
 }
@@ -396,16 +431,22 @@ sub update {
 	}
 
 	# non-blocking request
-	$self->login(sub {
-		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,undef) if $err;
-		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path("sobjects/$type/$id");
-		$sf->ua->patch($url, $sf->_headers(), json=>$object,sub {
-			my ($ua, $tx) = @_;
-			return $sf->$cb($sf->_error($tx),undef) unless $tx->success;
-			return $sf->$cb(undef,{id=>$id,success=>1,errors=>[],});
-		});
-	});
+	Mojo::IOLoop->delay(
+		sub { $self->login(shift->begin) },
+		sub {
+			my ( $delay, $err, $token ) = @_;
+			return $self->$cb($err,undef) if $err;
+			my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path("sobjects/$type/$id");
+			$self->ua->patch($url, $self->_headers(), json=>$object, $delay->begin);
+		},
+		sub {
+			my ($delay, $tx) = @_;
+			return $self->$cb($self->_error($tx)) unless $tx->success;
+			return $self->$cb(undef,{id=>$id,success=>1,errors=>[],});
+		}
+	)->catch(sub {
+		return $self->$cb(pop); # uncoverable statement
+	})->wait;
 	return $self;
 
 }

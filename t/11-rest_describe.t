@@ -1,7 +1,6 @@
 use Mojo::Base -strict;
 use Test::More;
-use Mojo::IOLoop::Delay;
-use Mojo::JSON;
+use Mojo::IOLoop;
 use Mojolicious::Lite;
 use Try::Tiny;
 use v5.10;
@@ -167,122 +166,97 @@ can_ok($sf, qw(describe describe_sobject describe_global) );
 }
 
 # non-blocking describe_global
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->describe_global(shift->begin(0))},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		is($err,undef, 'describe_global-nb error: correct empty error');
 		is_deeply($res,$DES_GLO, "describe_global-nb: correct response" )
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in describe_global-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in describe_global-nb: ".pop)})->wait;
 
 # non-blocking describe errors
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->describe('something', shift->begin(0));},
 	sub {
 		my ($delay, $sf, $err, $res) = @_;
 		is($res, undef, 'describe-nb error: correctly got no successful response');
 		like( $err, qr/The requested resource does not exist/, "describe-nb error: got correct error message on bad object name");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in describe-nb: ".pop);
-})->wait;
-Mojo::IOLoop::Delay->new()->steps(
+)->catch(sub {BAIL_OUT("Something went wrong in describe-nb: ".pop)})->wait;
+
+Mojo::IOLoop->delay(
 	sub {$sf->describe('', shift->begin(0));},
 	sub {
 		my ($delay, $sf, $err, $res) = @_;
 		is($res, undef, 'describe-nb error: correctly got no successful response');
 		like( $err, qr/An object is required to describe it/, "describe-nb error: got correct error message on empty string object");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in describe-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in describe-nb: ".pop)})->wait;
 
 # non-blocking describe_sobject errors
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->describe_sobject('something', shift->begin(0));},
 	sub {
 		my ($delay, $sf, $err, $res) = @_;
 		is($res, undef, 'describe_sobject-nb error: correctly got no successful response');
 		like( $err, qr/The requested resource does not exist/, "describe_sobject-nb error: got correct error message on bad object name");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in describe_sobject-nb: ".pop);
-})->wait;
-Mojo::IOLoop::Delay->new()->steps(
+)->catch(sub {BAIL_OUT("Something went wrong in describe_sobject-nb: ".pop)})->wait;
+
+Mojo::IOLoop->delay(
 	sub {$sf->describe_sobject('', shift->begin(0));},
 	sub {
 		my ($delay, $sf, $err, $res) = @_;
 		is($res, undef, 'describe_sobject-nb error: correctly got no successful response');
 		like( $err, qr/An object is required to describe it/, "describe_sobject-nb error: got correct error message on empty string object");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in describe_sobject-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in describe_sobject-nb: ".pop)})->wait;
 
 # non-blocking describe
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->describe('Account',shift->begin(0))},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		is($err,undef, 'describe-nb error: correct empty error');
 		is_deeply($res,$DESCRIBE, "describe-nb: correct response" )
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in describe-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in describe-nb: ".pop)})->wait;
 
 # non-blocking describe_sobject
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->describe_sobject('Account',shift->begin(0))},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		is($err,undef, 'describe_sobject-nb error: correct empty error');
 		is_deeply($res,$DESCRIBE, "describe_sobject-nb: correct response" )
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in describe_sobject-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in describe_sobject-nb: ".pop)})->wait;
+
 # attempt it when logins fail
 $sf->_access_token('');
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->describe('Account', shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like( $err, qr/404 Not Found/, 'describe_global-nb error: bad login');
 		is($res, undef, 'describe_global-nb error: bad login correctly got no successful response');
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in describe_global-nb: ".pop);
-})->wait;
-Mojo::IOLoop::Delay->new()->steps(
+)->catch(sub {BAIL_OUT("Something went wrong in describe_global-nb: ".pop)})->wait;
+
+Mojo::IOLoop->delay(
 	sub {$sf->describe_global(shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like( $err, qr/404 Not Found/, 'describe_global-nb error: bad login');
 		is($res, undef, 'describe_global-nb error: bad login correctly got no successful response');
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in describe_global-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in describe_global-nb: ".pop)})->wait;
 
 $ERROR_OUT = 1;
 $sf->_access_token('123455663452abacbabababababababanenenenene');
 like( (try{return $sf->describe_global()} catch {return $_}), qr/500 Internal Server Error/, "describe_global: error");
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->describe_global(shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like( $err, qr/500 Internal Server Error/, 'describe_global-nb error: bad login');
 		is($res, undef, 'describe_global-nb error: bad login correctly got no successful response');
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in describe_global-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in describe_global-nb: ".pop)})->wait;
+
 done_testing;

@@ -1,7 +1,6 @@
 use Mojo::Base -strict;
 use Test::More;
-use Mojo::IOLoop::Delay;
-use Mojo::JSON;
+use Mojo::IOLoop;
 use Mojolicious::Lite;
 use Try::Tiny;
 use v5.10;
@@ -97,10 +96,7 @@ Mojo::IOLoop->delay(
 		like($err, qr/MALFORMED_SEARCH/, 'search-nb: malformed SOSL error');
 		is($res, undef, "search-nb: malformed SOSL empty result");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in search-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in search-nb: ".pop)})->wait;
 $sf->_access_token('');
 Mojo::IOLoop->delay(
 	sub {$sf->search($SOSL_MAL, shift->begin(0));},
@@ -108,10 +104,7 @@ Mojo::IOLoop->delay(
 		is($err, '404 Not Found', 'search-nb: not logged in');
 		is($res, undef, "search-nb: not logged in");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in search-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in search-nb: ".pop)})->wait;
 $sf->_access_token('123455663452abacbabababababababanenenenene');
 $ERROR_OUT=1;
 Mojo::IOLoop->delay(
@@ -120,10 +113,7 @@ Mojo::IOLoop->delay(
 		like($err, qr/INVALID_SESSION_ID/, 'search-nb: error on purpose');
 		is($res, undef, "search-nb: error on purpose");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in search-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in search-nb: ".pop)})->wait;
 $ERROR_OUT=0;
 
 # successful search-nb
@@ -133,9 +123,6 @@ Mojo::IOLoop->delay(
 		is($err, undef, 'search-nb: success without error');
 		is_deeply($res, $RES, "search-nb: proper response");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in search-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in search-nb: ".pop)})->wait;
 
 done_testing;

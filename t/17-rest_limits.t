@@ -1,7 +1,6 @@
 use Mojo::Base -strict;
 use Test::More;
-use Mojo::IOLoop::Delay;
-use Mojo::JSON;
+use Mojo::IOLoop;
 use Mojolicious::Lite;
 use Try::Tiny;
 use v5.10;
@@ -28,70 +27,6 @@ my $LIMITS = {
 		Max => 45000,
 		Remaining => 40826
 	},
-	DailyAsyncApexExecutions => {
-		Max => 250000,
-		Remaining => 250000
-	},
-	DailyBulkApiRequests => {
-		Max => 5000,
-		Remaining => 5000
-	},
-	DailyGenericStreamingApiEvents => {
-		Max => 100000,
-		Remaining => 100000
-	},
-	DailyStreamingApiEvents => {
-		Max => 200000,
-		Remaining => 200000
-	},
-	DailyWorkflowEmails => {
-		Max => 45000,
-		Remaining => 45000
-	},
-	DataStorageMB => {
-		Max => 2122,
-		Remaining => 170
-	},
-	FileStorageMB => {
-		Max => 112092,
-		Remaining => 110586
-	},
-	HourlyAsyncReportRuns => {
-		Max => 1200,
-		Remaining => 1200
-	},
-	HourlyDashboardRefreshes => {
-		Max => 200,
-		Remaining => 200
-	},
-	HourlyDashboardResults => {
-		Max => 5000,
-		Remaining => 5000
-	},
-	HourlyDashboardStatuses => {
-		Max => 999999999,
-		Remaining => 999999999
-	},
-	HourlySyncReportRuns => {
-		Max => 500,
-		Remaining => 500
-	},
-	HourlyTimeBasedWorkflow => {
-		Max => 500,
-		Remaining => 500
-	},
-	MassEmail => {
-		Max => 1000,
-		Remaining => 1000
-	},
-	SingleEmail => {
-		Max => 1000,
-		Remaining => 1000
-	},
-	StreamingApiConcurrentClients => {
-		Max => 1000,
-		Remaining => 1000
-	}
 };
 
 # Silence
@@ -123,16 +58,13 @@ $sf->_instance_url('/');
 $sf->_access_time(time());
 
 # first, test a login failure
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->limits(shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like( $err, qr/404 Not Found/, 'limits-nb error: bad login');
 		is($res, undef, 'limits-nb error: bad login correctly got no successful response');
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in limits-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in limits-nb: ".pop)})->wait;
 
 # set the login
 $sf->_access_token('123455663452abacbabababababababanenenenene');
@@ -149,28 +81,22 @@ $res = try{return $sf->limits(undef)} catch {return $_};
 is_deeply( $res, $LIMITS, "limits: correct even with undef");
 
 # non-blocking limits
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->limits(shift->begin(0))},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		is($err,undef, 'limits-nb error: correct empty error');
 		is_deeply($res,$LIMITS, "limits-nb: correct response" )
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in limits-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in limits-nb: ".pop)})->wait;
 
 $ERROR_OUT = 1;
 $res = try{return $sf->limits()} catch {return $_};
 like( $res, qr/401/, "limits: error out.");
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->limits(shift->begin(0))},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like($err,qr/401/, 'limits-nb error: correct error');
 		is($res,undef, "limits-nb: correct no response" )
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in limits-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in limits-nb: ".pop)})->wait;
 done_testing;

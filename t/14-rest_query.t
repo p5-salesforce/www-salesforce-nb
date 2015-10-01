@@ -1,7 +1,6 @@
 use Mojo::Base -strict;
 use Test::More;
-use Mojo::IOLoop::Delay;
-use Mojo::JSON;
+use Mojo::IOLoop;
 use Mojolicious::Lite;
 use Try::Tiny;
 use v5.10;
@@ -119,117 +118,89 @@ can_ok($sf, qw(query) );
 }
 
 #error
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->query(shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like($err, qr/A query is required/, 'query-nb: empty query correctly got an error');
 		is_deeply($res, [], "query-nb: got the right empty result");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in query-nb: ".pop);
-})->wait;
-Mojo::IOLoop::Delay->new()->steps(
+)->catch(sub {BAIL_OUT("Something went wrong in query-nb: ".pop)})->wait;
+
+Mojo::IOLoop->delay(
 	sub {$sf->query('bad query', shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like($err, qr/^401 Unauthorized, foo: what?!?/, 'query-nb: correctly got an error');
 		is_deeply($res, [], "query-nb: got the right empty result");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in query-nb: ".pop);
-})->wait;
-Mojo::IOLoop::Delay->new()->steps(
+)->catch(sub {BAIL_OUT("Something went wrong in query-nb: ".pop)})->wait;
+
+Mojo::IOLoop->delay(
 	sub {$sf->query('malformed 1', shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		is($err, undef, 'query-nb: malformed 1');
 		is_deeply($res, [], "query-nb: malformed 1 got the right empty result");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in query-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in query-nb: ".pop)})->wait;
 
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->query('malformed 2', shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		is($err, undef, 'query-nb: malformed 2');
 		is_deeply($res, [], "query-nb: malformed 2 got the right empty result");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in query-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in query-nb: ".pop)})->wait;
 
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->query('malformed 3', shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		is($err, undef, 'query-nb: malformed 3');
 		is_deeply($res, [$FIRST], "query-nb: malformed 3 got the right partial result");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in query-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in query-nb: ".pop)})->wait;
 
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->query('malformed 4', shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		is($err, undef, 'query-nb: malformed 4');
 		is_deeply($res, [], "query-nb: malformed 4 got the right empty result");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in query-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in query-nb: ".pop)})->wait;
 
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->query('malformed 5', shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		is($err, undef, 'query-nb: malformed 5');
 		is_deeply($res, [], "query-nb: malformed 5 got the right empty result");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in query-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in query-nb: ".pop)})->wait;
 
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->query('select Id,IsActive,Name from Product2', shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		is($err, undef, 'query-nb: correctly got no fault');
 		is_deeply($res, [$FIRST,$SECOND], "query-nb: got the right result");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in query-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in query-nb: ".pop)})->wait;
 
 # not logged in problem
 $sf->_access_token('');
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->query('bad query', shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like($err, qr/^404/, 'query-nb: not logged in: correctly got an error');
 		is($res, undef, "query-nb: not logged in: got the right empty result");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in query-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in query-nb: ".pop)})->wait;
 # malformed response problem
 $ERROR_OUT=1;
 $sf->_access_token('123455663452abacbabababababababanenenenene');
-Mojo::IOLoop::Delay->new()->steps(
+Mojo::IOLoop->delay(
 	sub {$sf->query('bad query', shift->begin(0));},
 	sub { my ($delay, $sf, $err, $res) = @_;
 		like($err, qr/^401 Unauthorized/, 'query-nb: correctly got an error');
 		is_deeply($res, [], "query-nb: got the right empty result");
 	}
-)->catch(sub {
-	shift->ioloop->stop;
-	BAIL_OUT("Something went wrong in query-nb: ".pop);
-})->wait;
+)->catch(sub {BAIL_OUT("Something went wrong in query-nb: ".pop)})->wait;
 
 
 done_testing;
