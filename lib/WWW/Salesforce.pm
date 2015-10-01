@@ -92,7 +92,7 @@ sub create {
 			return $self->$cb(undef,$tx->res->json);
 		}
 	)->catch(sub {
-		return $self->$cb(pop); # uncoverable statement
+		return $self->$cb(pop);
 	})->wait;
 	return $self;
 }
@@ -141,7 +141,7 @@ sub delete {
 			return $self->$cb(undef,{id=>$id,success=>1,errors=>[]});
 		}
 	)->catch(sub {
-		return $self->$cb(pop); # uncoverable statement
+		return $self->$cb(pop);
 	})->wait;
 	return $self;
 }
@@ -182,7 +182,7 @@ sub describe {
 			return $self->$cb(undef,$tx->res->json);
 		}
 	)->catch(sub {
-		return $self->$cb(pop); # uncoverable statement
+		return $self->$cb(pop);
 	})->wait;
 	return $self;
 }
@@ -215,7 +215,7 @@ sub describe_global {
 			return $self->$cb(undef,$tx->res->json);
 		}
 	)->catch(sub {
-		return $self->$cb(pop); # uncoverable statement
+		return $self->$cb(pop);
 	})->wait;
 	return $self;
 }
@@ -248,7 +248,7 @@ sub limits {
 			return $self->$cb(undef,$tx->res->json);
 		}
 	)->catch(sub {
-		return $self->$cb(pop); # uncoverable statement
+		return $self->$cb(pop);
 	})->wait;
 	return $self;
 }
@@ -349,7 +349,7 @@ sub retrieve {
 			return $self->$cb(undef,$tx->res->json);
 		}
 	)->catch(sub {
-		return $self->$cb(pop); # uncoverable statement
+		return $self->$cb(pop);
 	})->wait;
 	return $self;
 }
@@ -386,38 +386,34 @@ sub search {
 			return $self->$cb(undef,$tx->res->json);
 		}
 	)->catch(sub {
-		return $self->$cb(pop); # uncoverable statement
+		return $self->$cb(pop);
 	})->wait;
 	return $self;
 }
 
-sub update {
-	my ($self,$type,$id,$object,$cb) = @_;
-	$cb = ($cb && ref($cb) eq 'CODE')? $cb: undef;
-	$id = ($id && !ref($id) && $id =~ /^[a-zA-Z0-9]{15,18}$/)?$id: undef;
-	$object = ($object && ref($object) eq 'HASH')? $object: {};
-
+sub update { # [type,id],object,[cb]
+	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
+	my $object = ($_[-1] && ref($_[-1]) eq 'HASH')? pop: {};
+	my ($self,$type,$id) = @_;
+	# if we got an invalid or empty id, try the object
+	$id = ($id && !ref($id))? $id: $object->{Id} || undef;
+	# if we got an invalid or empty type, try the object
 	$type = ($type && !ref($type))? $type : $object->{attributes}{type} || $object->{type} || undef;
-	$type = undef unless $type && !ref($type);
 
+	#clean up the object
 	delete($object->{Id});
 	delete($object->{type});
 	delete($object->{attributes});
 
 	# we have now cleaned up the object and hopefully have a type and Id.
-	unless ( $type ) {
+	unless ( $type && !ref($type) ) {
 		die "No SObject Type defined." unless $cb;
 		$self->$cb("No SObject Type defined.", undef);
 		return $self;
 	}
-	unless ( $id ) {
+	unless ( $id && !ref($id) && $id =~ /^[a-zA-Z0-9]{15,18}$/ ) {
 		die "No SObject ID provided." unless $cb;
 		$self->$cb("No SObject ID provided.", undef);
-		return $self;
-	}
-	unless ( scalar(keys(%$object)) ) {
-		die "Empty SObjects are not allowed." unless $cb;
-		$self->$cb("Empty SObjects are not allowed.",undef);
 		return $self;
 	}
 
@@ -445,7 +441,7 @@ sub update {
 			return $self->$cb(undef,{id=>$id,success=>1,errors=>[],});
 		}
 	)->catch(sub {
-		return $self->$cb(pop); # uncoverable statement
+		return $self->$cb(pop);
 	})->wait;
 	return $self;
 

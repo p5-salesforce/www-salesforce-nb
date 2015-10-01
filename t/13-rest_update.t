@@ -43,6 +43,9 @@ patch '/services/data/v33.0/sobjects/:type/:id' => sub {
 	unless ( ref($params) eq 'HASH' ) {
 		return $c->render(json=>[{message=>"Can not deserialize SObject out of START_ARRAY token at [line:1, column:1]",errorCode=>"JSON_PARSER_ERROR"}],status=>400);
 	}
+	if ( scalar(keys %$params) <= 0 ) {
+		return $c->render(json=>[{message=>"invalid cross reference id",errorCode=>"INVALID_CROSS_REFERENCE_KEY",fields=>[]}],status=>400);
+	}
 	for my $key (keys %$params) {
 		unless ( grep {$key eq $_} @fields ) {
 			return $c->render(json=>[{message=>"No such column '$key' on sobject of type $type",errorCode=>"INVALID_FIELD"}],status=>400);
@@ -100,16 +103,16 @@ can_ok($sf, qw(update) );
 	$error = try {return $sf->update('Type',[]) } catch { $_; };
 	like( $error, qr/No SObject ID provided/, 'update error: arrayref ID');
 	# all the ways the object could fail
-	$error = try {return $sf->update('Type',$ID) } catch { $_; };
-	like( $error, qr/Empty SObjects are not allowed/, 'update error: Type and ID, SObject errors first');
-	$error = try {return $sf->update('Type',$ID,undef) } catch { $_; };
-	like( $error, qr/Empty SObjects are not allowed/, 'update error: undef SObject');
-	$error = try {return $sf->update('Type',$ID,'') } catch { $_; };
-	like( $error, qr/Empty SObjects are not allowed/, 'update error: empty string SObject');
-	$error = try {return $sf->update('Type',$ID,[]) } catch { $_; };
-	like( $error, qr/Empty SObjects are not allowed/, 'update error: arrayref SObject');
-	$error = try {return $sf->update('Type',$ID,{}) } catch { $_; };
-	like( $error, qr/Empty SObjects are not allowed/, 'update error: empty SObject');
+	$error = try {return $sf->update('Account',$ID) } catch { $_; };
+	like( $error, qr/INVALID_CROSS_REFERENCE_KEY/, 'update error: Type and ID, SObject errors first');
+	$error = try {return $sf->update('Account',$ID,undef) } catch { $_; };
+	like( $error, qr/INVALID_CROSS_REFERENCE_KEY/, 'update error: undef SObject');
+	$error = try {return $sf->update('Account',$ID,'') } catch { $_; };
+	like( $error, qr/INVALID_CROSS_REFERENCE_KEY/, 'update error: empty string SObject');
+	$error = try {return $sf->update('Account',$ID,[]) } catch { $_; };
+	like( $error, qr/INVALID_CROSS_REFERENCE_KEY/, 'update error: arrayref SObject');
+	$error = try {return $sf->update('Account',$ID,{}) } catch { $_; };
+	like( $error, qr/INVALID_CROSS_REFERENCE_KEY/, 'update error: empty SObject');
 }
 
 { # now test error messages coming from the server
@@ -124,10 +127,23 @@ can_ok($sf, qw(update) );
 	like( $error, qr/Provided external ID field does not exist/, 'update error: ID not found');
 	$error = try {return $sf->update('Account',$ID,{foo=>'bar'}) } catch { $_; };
 	like( $error, qr/No such column/, 'update error: Invalid column');
+	$error = try {return $sf->update({type=>{},Id=>$ID,Name=>'bar'}) } catch { $_; };
+	like( $error, qr/No SObject Type defined/, 'update error: Type is a hashref');
+	$error = try {return $sf->update({type=>'Foo',Id=>{},Name=>'bar'}) } catch { $_; };
+	like( $error, qr/No SObject ID provided/, 'update error: ID is a hashref');
+	$error = try {return $sf->update({type=>'Foo',Id=>'1234',Name=>'bar'}) } catch { $_; };
+	like( $error, qr/No SObject ID provided/, 'update error: ID is a short string');
 }
 
 { # successes
-	my $res = try {return $sf->update('Account',$ID,{Name=>'bar'}) } catch { $_; };
+	my $res;
+	$res = try {return $sf->update('Account',$ID,{Name=>'bar'}) } catch { $_; };
+	is_deeply($res,{id=>$ID,success=>1,errors=>[],}, 'update: Successful update');
+	$res = try {return $sf->update('Account',{Id=>$ID,Name=>'bar'}) } catch { $_; };
+	is_deeply($res,{id=>$ID,success=>1,errors=>[],}, 'update: Successful update');
+	$res = try {return $sf->update('','',{type=>'Account',Id=>$ID,Name=>'bar'}) } catch { $_; };
+	is_deeply($res,{id=>$ID,success=>1,errors=>[],}, 'update: Successful update');
+	$res = try {return $sf->update({type=>'Account',Id=>$ID,Name=>'bar'}) } catch { $_; };
 	is_deeply($res,{id=>$ID,success=>1,errors=>[],}, 'update: Successful update');
 }
 
@@ -139,8 +155,31 @@ Mojo::IOLoop->delay(
 		is($res, undef, 'update-nb error: correctly got no successful response');
 	}
 )->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
+Mojo::IOLoop->delay(
+	sub {$sf->update('',$ID,{Name=>'bar'}, shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		is($err, 'No SObject Type defined.', 'update-nb error: invalid object type');
+		is($res, undef, 'update-nb error: correctly got no successful response');
+	}
+)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
+Mojo::IOLoop->delay(
+	sub {$sf->update('badObject','',{Name=>'bar'}, shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		is($err, 'No SObject ID provided.', 'update-nb error: invalid object ID');
+		is($res, undef, 'update-nb error: correctly got no successful response');
+	}
+)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
+$sf->_access_token('');
+Mojo::IOLoop->delay(
+	sub {$sf->update('badObject',$ID,{Name=>'bar'}, shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		is($err, '404 Not Found', 'update-nb error: not logged in');
+		is($res, undef, 'update-nb error: correctly got no successful response');
+	}
+)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
 
 #non-blocking success
+$sf->_access_token('123455663452abacbabababababababanenenenene');
 Mojo::IOLoop->delay(
 	sub {$sf->update('Account',$ID, {Name=>'bar'}, shift->begin(0));},
 	sub {
