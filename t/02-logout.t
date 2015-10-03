@@ -15,52 +15,11 @@ BEGIN {
 }
 # Silence
 app->log->level('fatal');
-post '/services/Soap/u/33.0/' => sub {
-	my $c = shift;
-	my $username = '';
-	my $password = '';
-	my $input = '';
-	$input = $c->req->dom() if $c->req && $c->req->content && $c->req->dom;
-	my $eof = q(<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"><soapenv:Body><soapenv:Fault><faultcode>soapenv:Client</faultcode><faultstring>Premature end of file.</faultstring></soapenv:Fault></soapenv:Body></soapenv:Envelope>);
-	return $c->render(data=>$eof, format => 'xml', status=>500) unless $input;
-	$username = $input->at('urn\:username')->text() if $input->at('urn\:username');
-	$password = $input->at('urn\:password')->text() if $input->at('urn\:password');
-	#return actual error messages
-	my $error=q(<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sf="urn:fault.partner.soap.sforce.com" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soapenv:Body><soapenv:Fault><faultcode>sf:INVALID_LOGIN</faultcode><faultstring>INVALID_LOGIN: Invalid username, password, security token; or user locked out.</faultstring><detail><sf:LoginFault xsi:type="sf:LoginFault"><sf:exceptionCode>INVALID_LOGIN</sf:exceptionCode><sf:exceptionMessage>Invalid username, password, security token; or user locked out.</sf:exceptionMessage></sf:LoginFault></detail></soapenv:Fault></soapenv:Body></soapenv:Envelope>);
-	return $c->render(data=>$error, format => 'xml', status=>500) unless $username eq 'test';
-	return $c->render(data=>$error, format => 'xml', status=>500) unless $password eq 'testtoke';
-	# return the successful response
-	my $success=qq(<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns="urn:partner.soap.sforce.com" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soapenv:Body><loginResponse><result><metadataServerUrl>/</metadataServerUrl><passwordExpired>false</passwordExpired><sandbox>false</sandbox><serverUrl>/</serverUrl><sessionId>123455663452abacbabababababababanenenenene</sessionId><userId>00e30658AA0de34AA2</userId><userInfo><accessibilityMode>false</accessibilityMode><currencySymbol>\$</currencySymbol><orgAttachmentFileSizeLimit>5242880</orgAttachmentFileSizeLimit><orgDefaultCurrencyIsoCode>USD</orgDefaultCurrencyIsoCode><orgDisallowHtmlAttachments>false</orgDisallowHtmlAttachments><orgHasPersonAccounts>false</orgHasPersonAccounts><organizationId>00e30658AA0de34AAX</organizationId><organizationMultiCurrency>false</organizationMultiCurrency><organizationName>Test Company</organizationName><profileId>00e30658AA0de34AAA</profileId><roleId>00e30658AA0de34AA1</roleId><sessionSecondsValid>14400</sessionSecondsValid><userDefaultCurrencyIsoCode xsi:nil="true"/><userEmail>test\@tester.com</userEmail><userFullName>Test User</userFullName><userId>00e30658AA0de34AA2</userId><userLanguage>en_US</userLanguage><userLocale>en_US</userLocale><userName>$username</userName><userTimeZone>America/New_York</userTimeZone><userType>Standard</userType><userUiSkin>Theme3</userUiSkin></userInfo></result></loginResponse></soapenv:Body></soapenv:Envelope>);
-	return $c->render(data => $success, format => 'xml');
-};
 post '/services/oauth2/revoke' => sub {
 	my $c = shift;
 	my $token = $c->param('token');
 	return $c->render(json=>[{error_description=>"invalid token: $token",error=>"unsupported_token_type"}], status=>400) unless $token eq '123455663452abacbabababababababanenenenene';
 	return $c->render(json=>[{success=>'true'}]);
-};
-post '/services/oauth2/token' => sub {
-	my $c = shift;
-	my $grant_type = $c->param('grant_type') || '';
-	my $client_id = $c->param('client_id') || '';
-	my $client_secret = $c->param('client_secret') || '';
-	my $username = $c->param('username') || '';
-	my $password = $c->param('password') || '';
-	#return actual error messages
-	return $c->render(json=>[{error_description=>"grant type not supported",error=>"unsupported_grant_type"}], status=>400) unless $grant_type eq 'password';
-	return $c->render(json=>[{error_description=>'Invalid client credentials',error=>'invalid_client'}], status=>400) unless $client_id eq 'test_id';
-	return $c->render(json=>[{error_description=>'Invalid client credentials',error=>'invalid_client'}], status=>400) unless $client_secret eq 'test_secret';
-	return $c->render(json=>[{error_description=>'authentication failure',error=>'invalid_grant'}], status=>400) unless $username eq 'test';
-	return $c->render(json=>[{error_description=>'authentication failure',error=>"invalid_grant"}], status=>400) unless $password eq 'testtoke';
-	# return the successful response
-	return $c->render(json => {
-		id => "/id/00D3012300VnRVAU/0015004310HWV5ZAQ",
-		token_type =>"Bearer",
-		signature => "CtSomeSignature3421351345141LKJFSDLK8723451nhx8=",
-		instance_url => Mojo::URL->new('/'),
-		issued_at => time()*1000,
-		access_token => '123455663452abacbabababababababanenenenene'
-	});
 };
 
 my $sf = try {
@@ -79,8 +38,85 @@ my $sf = try {
 	return undef;
 };
 isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
-
-# Test attributes
+# set the login
+$sf->_instance_url('/');
+$sf->_access_token('123455663452abacbabababababababanenenenene');
+$sf->_access_time(time());
+# actual testing
 can_ok($sf, qw(logout)) or BAIL_OUT("Something's wrong with the methods!");
+
+# logout errors
+{
+	$sf->_instance_url('/');
+	$sf->_access_token('invalid_token');
+	$sf->_access_time(time());
+	my $res;
+	$res = try { $sf->logout() } catch { $_ };
+	like($res, qr/invalid token/, "logout: Invalid logout: invalid token");
+	Mojo::IOLoop->delay( sub {$sf->logout(shift->begin(0))},
+		sub { my ($delay,$sf,$err,$res) = @_;
+			like($err, qr/invalid token/, 'logout-nb: invalid: correct error message');
+			is( $res, undef, 'logout-nb: invalid: correct no result' );
+		}
+	)->catch(sub { BAIL_OUT("logout-nb: something went horribly wrong".pop) })->wait;
+}
+
+$sf->_instance_url('/');
+$sf->_access_token('123455663452abacbabababababababanenenenene');
+$sf->_access_time(time());
+try {$sf->logout()} catch { BAIL_OUT("logout: something went horribly wrong".pop) };
+is($sf->_access_token(),undef,"logout: _access_token undef");
+is($sf->_instance_url(),undef,"logout: _instance_url undef");
+is($sf->_access_time(),0,"logout: _instance_url 0");
+
+$sf->_instance_url('/');
+$sf->_access_token('123455663452abacbabababababababanenenenene');
+$sf->_access_time(time());
+try {$sf->logout(undef)} catch { BAIL_OUT("logout: something went horribly wrong".pop) };
+is($sf->_access_token(),undef,"logout: _access_token undef");
+is($sf->_instance_url(),undef,"logout: _instance_url undef");
+is($sf->_access_time(),0,"logout: _instance_url 0");
+
+$sf->_instance_url('/');
+$sf->_access_token('123455663452abacbabababababababanenenenene');
+$sf->_access_time(time());
+try {$sf->logout('nonsense')} catch { BAIL_OUT("logout: something went horribly wrong".pop) };
+is($sf->_access_token(),undef,"logout: _access_token undef");
+is($sf->_instance_url(),undef,"logout: _instance_url undef");
+is($sf->_access_time(),0,"logout: _instance_url 0");
+
+$sf->_instance_url('/');
+$sf->_access_token('123455663452abacbabababababababanenenenene');
+$sf->_access_time(time());
+try {$sf->logout({foo=>'nonsense'})} catch { BAIL_OUT("logout: something went horribly wrong".pop) };
+is($sf->_access_token(),undef,"logout: _access_token undef");
+is($sf->_instance_url(),undef,"logout: _instance_url undef");
+is($sf->_access_time(),0,"logout: _instance_url 0");
+
+$sf->_instance_url('/');
+$sf->_access_token('123455663452abacbabababababababanenenenene');
+$sf->_access_time(time());
+Mojo::IOLoop->delay( sub {$sf->logout(shift->begin(0))},
+	sub { my ($delay,$sf,$err,$res) = @_;
+		is($err, undef, 'logout-nb: correctly got no fault');
+		is($sf->_access_token(),undef,"logout-nb: _access_token undef");
+		is($sf->_instance_url(),undef,"logout-nb: _instance_url undef");
+		is($sf->_access_time(),0,"logout-nb: _instance_url 0");
+	}
+)->catch(sub { BAIL_OUT("logout-nb: something went horribly wrong".pop) })->wait;
+
+# run it with no login required
+try {$sf->logout()} catch { BAIL_OUT("logout: something went horribly wrong".pop) };
+is($sf->_access_token(),undef,"logout: already logged out: _access_token undef");
+is($sf->_instance_url(),undef,"logout: already logged out: _instance_url undef");
+is($sf->_access_time(),0,"logout: already logged out: _instance_url 0");
+Mojo::IOLoop->delay( sub {$sf->logout(shift->begin(0))},
+	sub { my ($delay,$sf,$err,$res) = @_;
+		is($err, undef, 'logout-nb: already logged out: correctly got no fault');
+		is($sf->_access_token(),undef,"logout-nb: already logged out: _access_token undef");
+		is($sf->_instance_url(),undef,"logout-nb: already logged out: _instance_url undef");
+		is($sf->_access_time(),0,"logout-nb: already logged out: _instance_url 0");
+	}
+)->catch(sub { BAIL_OUT("logout-nb: something went horribly wrong".pop) })->wait;
 
 done_testing();

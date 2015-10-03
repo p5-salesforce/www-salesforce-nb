@@ -126,8 +126,7 @@ try {
 	$sf->username('test');
 	$sf->login();
 	is($sf->_access_token(), '123455663452abacbabababababababanenenenene', 'login: oauth2_up: got the right access token');
-	$sf->logout();
-	is($sf->_access_token(), undef, 'logout: oauth2_up: cleared up our login');
+	$sf->_access_token('');
 } catch {
 	BAIL_OUT("Unable to login and out properly with oauth2_up: $_");
 };
@@ -137,27 +136,44 @@ try {
 	$sf->login_type('soap');
 	$sf->login();
 	is($sf->_access_token(), '123455663452abacbabababababababanenenenene', 'login: soap: got the right access token');
-	$sf->logout();
-	is($sf->_access_token(), undef, 'logout: soap: cleared up our login');
+	$sf->_access_token('');
 } catch {
 	BAIL_OUT("Unable to login and out properly with soap: $_");
 };
 
-{
-	# non-blocking error
-	Mojo::IOLoop->delay(
-		sub {$sf->login_type('oauth2_up');$sf->username('test2');$sf->login(shift->begin(0));},
-		sub { my ($delay, $sf, $err, $res) = @_;
-			like( $err, qr/invalid_grant/, 'login-nb oauth2_up: error: invalid grant');
-			is($res, undef, 'login-nb oauth2_up: error: correctly got no successful response');
-		}
-	)->catch(sub {BAIL_OUT("Something went wrong in login_oath2_up-nb: ".pop)})->wait;
-	Mojo::IOLoop->delay(
-		sub {$sf->login_type('soap');$sf->username('test2');$sf->login(shift->begin(0));},
-		sub { my ($delay, $sf, $err, $res) = @_;
-			like( $err, qr/INVALID_LOGIN/, 'login-nb soap: error: invalid login');
-			is($res, undef, 'login-nb soap: error: correctly got no successful response');
-		}
-	)->catch(sub {BAIL_OUT("Something went wrong in login_soap-nb: ".pop)})->wait;
-}
+# non-blocking error
+Mojo::IOLoop->delay(
+	sub {$sf->login_type('oauth2_up');$sf->username('test2');$sf->login(shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		like( $err, qr/invalid_grant/, 'login-nb oauth2_up: error: invalid grant');
+		is($res, undef, 'login-nb oauth2_up: error: correctly got no successful response');
+	}
+)->catch(sub {BAIL_OUT("Something went wrong in login_oath2_up-nb: ".pop)})->wait;
+Mojo::IOLoop->delay(
+	sub {$sf->login_type('soap');$sf->username('test2');$sf->login(shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		like( $err, qr/INVALID_LOGIN/, 'login-nb soap: error: invalid login');
+		is($res, undef, 'login-nb soap: error: correctly got no successful response');
+	}
+)->catch(sub {BAIL_OUT("Something went wrong in login_soap-nb: ".pop)})->wait;
+
+Mojo::IOLoop->delay(
+	sub {$sf->login_type('oauth2_up');$sf->username('test');$sf->login(shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		is( $err, undef, 'login-nb oauth2_up: login success with no error');
+		is($res, '123455663452abacbabababababababanenenenene', 'login-nb oauth2_up: successful login');
+		$sf->_access_token('');
+		$sf->_instance_url('');
+	}
+)->catch(sub {BAIL_OUT("Something went wrong in login_soap-nb: ".pop)})->wait;
+
+Mojo::IOLoop->delay(
+	sub {$sf->login_type('soap');$sf->login(shift->begin(0));},
+	sub { my ($delay, $sf, $err, $res) = @_;
+		is( $err, undef, 'login-nb oauth2_up: login success with no error');
+		is($res, '123455663452abacbabababababababanenenenene', 'login-nb oauth2_up: successful login');
+		$sf->_access_token('');
+	}
+)->catch(sub {BAIL_OUT("Something went wrong in login_soap-nb: ".pop)})->wait;
+
 done_testing();

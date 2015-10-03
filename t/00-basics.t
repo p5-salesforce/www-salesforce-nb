@@ -32,6 +32,7 @@ isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("c
 can_ok($sf, (
 	qw(_access_token _access_time _instance_url consumer_key consumer_secret ),
 	qw(username password pass_token ua version login_url login_type),
+	qw(_login_required)
 )) or BAIL_OUT("Something's wrong with the attributes!");
 
 # Test API Path gathering
@@ -290,6 +291,13 @@ is($sf->_error($sf), 'Invalid transaction object', "_error: non-Transaction obje
 		'500',
 		"_error: Errored TX, custom error - No Content Type"
 	);
+	$sf->_access_token('123');
+	$sf->_instance_url('');
+	is($sf->_login_required(),1,"_login_required: undef");
+	$sf->_access_token('123');
+	$sf->_instance_url('123');
+	$sf->_access_time(time()-(60*45));
+	is($sf->_login_required(),1,"_login_required: undef");
 }
 
 done_testing();

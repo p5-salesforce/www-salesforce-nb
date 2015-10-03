@@ -38,7 +38,6 @@ sub logout {
 		my $tx = $self->ua->post($url, $self->_headers(), form =>{token=>$self->_access_token});
 		die $self->_error($tx) unless $tx->success;
 		$self->_instance_url(undef);
-		$self->_path(undef);
 		$self->_access_token(undef);
 		$self->_access_time(0);
 		$self->ua->cookie_jar->empty();
@@ -51,7 +50,6 @@ sub logout {
 			my ($delay, $tx) = @_;
 			return $self->$cb($self->_error($tx),undef) unless $tx->success;
 			$self->_instance_url(undef);
-			$self->_path(undef);
 			$self->_access_token(undef);
 			$self->_access_time(0);
 			$self->ua->cookie_jar->empty();
@@ -100,10 +98,9 @@ sub _login_oauth2_up {
 # returns true (1) if login required, else undef
 sub _login_required {
 	my $self = shift;
-	if( $self->_access_token && $self->_instance_url && $self->_path ) {
-		if ( my $time = $self->_access_time ) {
-			return undef if ( int((time() - $time)/60) < 30 );
-		}
+	if( $self->_access_token && $self->_instance_url ) {
+		my $time = $self->_access_time;
+		return undef if ( int((time() - $time)/60) < 30 );
 	}
 	$self->ua->cookie_jar->empty();
 	return 1;
