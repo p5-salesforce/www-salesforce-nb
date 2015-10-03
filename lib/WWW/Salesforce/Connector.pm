@@ -109,12 +109,12 @@ sub _login_required {
 sub _login_soap {
 	my ( $self, $cb ) = @_;
 	my $url = Mojo::URL->new($self->login_url)->path($self->_path('soap'));
-	my $envelope = $self->_soap->envelope_login($self->username, $self->password, $self->pass_token)->to_string;
+	my $envelope = WWW::Salesforce::SOAP::envelope_login($self->username, $self->password, $self->pass_token)->to_string;
 
 	unless ( $cb ) {
 		my $tx = $self->ua->post($url, $self->_headers('soap'), $envelope);
 		die $self->_error($tx) unless $tx->success;
-		my $data = $self->_soap->response_login($tx->res->dom);
+		my $data = WWW::Salesforce::SOAP::response_login($tx->res->dom);
 		$self->_instance_url(Mojo::URL->new($data->{serverUrl}));
 		$self->_access_token($data->{sessionId});
 		$self->_access_time(time);
@@ -125,7 +125,7 @@ sub _login_soap {
 		my ($ua, $tx) = @_;
 		#use Data::Dumper; say Dumper $tx->res; exit(0);
 		return $self->$cb($self->_error($tx),undef) unless $tx->success;
-		my $data = $self->_soap->response_login($tx->res->dom);
+		my $data = WWW::Salesforce::SOAP::response_login($tx->res->dom);
 		$self->_instance_url(Mojo::URL->new($data->{serverUrl}));
 		$self->_access_token($data->{sessionId});
 		$self->_access_time(time); #convert milliseconds to seconds

@@ -16,7 +16,6 @@ our $VERSION = '0.009';
 has '_access_token' => (is=>'rw',default=>'');
 has '_access_time' => (is=>'rw',lazy=>1,default=>sub{time()});
 has '_instance_url' => (is => 'rw', default => '');
-has '_soap' => (is => 'ro',required => 1,default => sub {WWW::Salesforce::SOAP->new();},);
 has consumer_key => (is =>'rw',default=>'');
 has consumer_secret => (is =>'rw',default=>'');
 has login_type => (

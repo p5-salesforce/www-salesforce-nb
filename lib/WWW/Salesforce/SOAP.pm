@@ -1,17 +1,12 @@
 package WWW::Salesforce::SOAP;
 
-use Moo;
 use strictures 2;
 use Mojo::DOM ();
 use Mojo::Util qw(xml_escape);
 use 5.010;
 use namespace::clean;
 
-has sf => (is=>'rw',isa=>sub{die "Must be a WWW::Salesforce" unless $_[0] && Scalar::Util::blessed($_[0]) && $_[0]->isa('WWW::Salesforce')});
-has urn => (is=>'rw',default=>'urn:partner.soap.sforce.com');
-
 sub envelope {
-	my $self = shift;
 	my $dom = Mojo::DOM->new->xml(1)->parse('<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope />');
 	$dom->at('soapenv\:Envelope')->attr(
 		'xmlns:soapenv' => "http://schemas.xmlsoap.org/soap/envelope/",
@@ -22,8 +17,8 @@ sub envelope {
 }
 
 sub envelope_login {
-	my ( $self, $user, $pass, $token ) = @_;
-	my $dom = $self->envelope;
+	my ( $user, $pass, $token ) = @_;
+	my $dom = envelope();
 	$dom->at('soapenv\:Header')->remove;
 	$dom->at('soapenv\:Body')->content('<urn:login><urn:username /><urn:password /></urn:login>');
 	$dom->at('urn\:username')->content(xml_escape($user || ''));
@@ -32,7 +27,7 @@ sub envelope_login {
 }
 
 sub response_login {
-	my ( $self, $dom ) = @_;
+	my $dom = shift;
 	my $info = {userInfo=>{},};
 	$dom->at('loginResponse > result')->child_nodes->each(sub {
 		my $element = shift;

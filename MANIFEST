@@ -19,5 +19,6 @@ t/14-rest_query.t
 t/15-rest_retrieve.t
 t/16-rest_search.t
 t/17-rest_limits.t
+t/20-soap_basics.t
 t/pod-coverage.t
 t/pod.t
