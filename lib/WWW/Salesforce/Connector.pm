@@ -83,15 +83,20 @@ sub _login_oauth2_up {
 	}
 
 	# non-blocking request
-	$self->ua->post($url, $self->_headers(), form => $form, sub {
-		my ($ua, $tx) = @_;
-		return $self->$cb($self->_error($tx),undef) unless $tx->success;
-		my $data = $tx->res->json;
-		$self->_instance_url(Mojo::URL->new($data->{instance_url}));
-		$self->_access_token($data->{access_token});
-		$self->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
-		return $self->$cb(undef, $self->_access_token);
-	});
+	Mojo::IOLoop->delay(
+		sub { $self->ua->post($url, $self->_headers(), form =>$form, shift->begin); },
+		sub {
+			my ($delay, $tx) = @_;
+			return $self->$cb($self->_error($tx),undef) unless $tx->success;
+			my $data = $tx->res->json;
+			$self->_instance_url(Mojo::URL->new($data->{instance_url}));
+			$self->_access_token($data->{access_token});
+			$self->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
+			return $self->$cb(undef, $self->_access_token);
+		}
+	)->catch(sub {
+		return $self->$cb(pop);
+	})->wait;
 	return $self;
 }
 
@@ -121,16 +126,20 @@ sub _login_soap {
 		return $self;
 	}
 	# non-blocking request
-	$self->ua->post($url,$self->_headers('soap'), $envelope, sub {
-		my ($ua, $tx) = @_;
-		#use Data::Dumper; say Dumper $tx->res; exit(0);
-		return $self->$cb($self->_error($tx),undef) unless $tx->success;
-		my $data = WWW::Salesforce::SOAP::response_login($tx->res->dom);
-		$self->_instance_url(Mojo::URL->new($data->{serverUrl}));
-		$self->_access_token($data->{sessionId});
-		$self->_access_time(time); #convert milliseconds to seconds
-		return $self->$cb(undef, $self->_access_token);
-	});
+	Mojo::IOLoop->delay(
+		sub { $self->ua->post($url, $self->_headers(), $envelope, shift->begin); },
+		sub {
+			my ($delay, $tx) = @_;
+			return $self->$cb($self->_error($tx),undef) unless $tx->success;
+			my $data = WWW::Salesforce::SOAP::response_login($tx->res->dom);
+			$self->_instance_url(Mojo::URL->new($data->{serverUrl}));
+			$self->_access_token($data->{sessionId});
+			$self->_access_time(time); #convert milliseconds to seconds
+			return $self->$cb(undef, $self->_access_token);
+	}
+	)->catch(sub {
+		return $self->$cb(pop);
+	})->wait;
 	return $self;
 }
 

@@ -287,24 +287,33 @@ sub query {
 	}
 
 	# non-blocking request
-	$self->login(sub {
-		my ( $sf, $err, $token ) = @_;
-		return $sf->$cb($err,undef) if $err;
-		my $url = Mojo::URL->new($sf->_instance_url)->path($sf->_path)->path('query/');
-		my $results = [];
-		my $results_nb;
-		$results_nb = sub {
-			my ($ua,$tx) = @_;
-			return $sf->$cb($sf->_error($tx),$results) unless $tx->success;
-			my $data = $tx->res->json;
-			return $sf->$cb(undef,$results) unless exists($data->{records}) && ref($data->{records}) eq 'ARRAY';
-			push @{$results}, @{$data->{records}};
-			return $sf->$cb(undef,$results) if $data->{done};
-			return $sf->$cb(undef,$results) unless $data->{nextRecordsUrl};
-			$sf->ua->get(Mojo::URL->new($sf->_instance_url)->path($data->{nextRecordsUrl}), $sf->_headers(), $results_nb);
-		};
-		$sf->ua->get($url, $sf->_headers(), form => { q => $query, }, $results_nb);
-	});
+	my $step;
+	$step = sub {
+		my ($delay, $tx) = @_;
+		my $results = $delay->data('results') // [];
+		return $self->$cb($self->_error($tx),$results) unless $tx->success;
+		my $data = $tx->res->json;
+		return $self->$cb(undef,$results) unless exists($data->{records}) && ref($data->{records}) eq 'ARRAY';
+		push @{$results}, @{$data->{records}};
+		return $self->$cb(undef,$results) if $data->{done};
+		return $self->$cb(undef,$results) unless $data->{nextRecordsUrl};
+		$delay->data(results=>$results);
+		$delay->steps($step);
+		$self->ua->get(Mojo::URL->new($self->_instance_url)->path($data->{nextRecordsUrl}), $self->_headers(), $delay->begin);
+	};
+
+	Mojo::IOLoop->delay(
+		sub { $self->login(shift->begin) },
+		sub {
+			my ( $delay, $err, $token ) = @_;
+			return $self->$cb($err,undef) if $err;
+			my $url = Mojo::URL->new($self->_instance_url)->path($self->_path)->path('query/');
+			$delay->steps($step);
+			$self->ua->get($url, $self->_headers(), form => { q => $query, }, $delay->begin);
+		}
+	)->catch(sub {
+		return $self->$cb(pop);
+	})->wait;
 	return $self;
 }
 
