@@ -1,5 +1,10 @@
 Revision history for Perl extension WWW::Salesforce.
 
+0.009
+	- All NB calls use Mojo::IOLoop->delay() now.
+	- All NB early errors use next_tick
+	- All coverage upped above 97%
+
 0.008
 	- moved the test mock server into its own file
 	- made the Connector a role
