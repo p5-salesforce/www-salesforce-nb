@@ -1,44 +1,29 @@
 package WWW::Salesforce;
 
-use Moo;
+use Mojo::Base -base;
 use Mojo::IOLoop;
 use Mojo::URL;
 use Mojo::UserAgent;
+use WWW::Salesforce::SOAP;
 use strictures 2;
 use namespace::clean;
 use v5.10;
 
-with 'WWW::Salesforce::Connector';
-
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 # salesforce login attributes
-has '_access_token' => (is=>'rw',default=>'');
-has '_access_time' => (is=>'rw',lazy=>1,default=>sub{time()});
-has '_instance_url' => (is => 'rw', default => '');
-has consumer_key => (is =>'rw',default=>'');
-has consumer_secret => (is =>'rw',default=>'');
-has login_type => (
-	is => 'rw',
-	required => 1,
-	isa => sub {
-		my $val = shift;
-		die "Invalid login_type requested." unless $val && grep {$val eq $_} qw(soap oauth2_up);
-	},
-	default => 'oauth2_up',
-);
-has login_url => (is => 'rw', required=>1, default => sub {Mojo::URL->new('https://login.salesforce.com/') } );
-has max_requests => (is=>'rw',isa =>sub{die "Must be an integer" unless $_[0] =~ /^[0-9]+$/},required => 1,default => '10',);
-has password => (is =>'rw',default=>'');
-has pass_token => (is =>'rw',default=>'');
-has ua => (is => 'ro',required => 1,default => sub {Mojo::UserAgent->new(inactivity_timeout=>50);},);
-has username => (is =>'rw',default=>'');
-has version => (
-	is=>'rw',
-	isa =>sub{die "Must be a floating number without the 'v'" unless $_[0] =~ /^[0-9]+\.[0-9]+$/},
-	required => 1,
-	default => '34.0',
-);
+has '_access_token' => '';
+has '_access_time' => sub {time()};
+has '_instance_url' => '';
+has consumer_key => '';
+has consumer_secret => '';
+has login_type => 'oauth2_up';
+has login_url => sub {Mojo::URL->new('https://login.salesforce.com/') };
+has password => '';
+has pass_token => '';
+has ua => sub {Mojo::UserAgent->new(inactivity_timeout=>50)};
+has username => '';
+has version => 34.0;
 
 sub insert { shift->create(@_) }
 sub create {
@@ -249,6 +234,59 @@ sub limits {
 			my ($delay, $tx) = @_;
 			return $self->$cb($self->_error($tx),undef) unless $tx->success;
 			return $self->$cb(undef,$tx->res->json);
+		}
+	)->catch(sub {
+		return $self->$cb(pop);
+	})->wait;
+	return $self;
+}
+
+# attempt a login to Salesforce to obtain a token
+sub login {
+	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
+	my ($self,$username,$password) = @_;
+	unless ( $self->_login_required ) {
+		Mojo::IOLoop->next_tick(sub { $self->$cb(undef, $self->_access_token) }) if $cb;
+		return $self;
+	}
+	my $type = $self->login_type();
+	return $self->_login_soap($cb) if $type eq 'soap';
+	return $self->_login_oauth2_up($cb)
+}
+
+# log out of salesforce and invalidate the token we're using
+sub logout {
+	my $cb = ($_[-1] && ref($_[-1]) eq 'CODE')? pop: undef;
+	my $self = shift;
+	if ( $self->_login_required ) {
+		# we don't need to logout
+		Mojo::IOLoop->next_tick(sub { $self->$cb(undef,1) }) if $cb;
+		return $self;
+	}
+	my $headers = $self->_headers();
+	$headers->{content_type} = 'application/x-www-form-urlencoded';
+	my $url = Mojo::URL->new($self->_instance_url)->path("/services/oauth2/revoke");
+	#blocking request
+	unless ( $cb ) {
+		my $tx = $self->ua->post($url, $self->_headers(), form =>{token=>$self->_access_token});
+		die $self->_error($tx) unless $tx->success;
+		$self->_instance_url(undef);
+		$self->_access_token(undef);
+		$self->_access_time(0);
+		$self->ua->cookie_jar->empty();
+		return $self;
+	}
+	# non-blocking request
+	Mojo::IOLoop->delay(
+		sub { $self->ua->post($url, $self->_headers(), form =>{token=>$self->_access_token}, shift->begin); },
+		sub {
+			my ($delay, $tx) = @_;
+			return $self->$cb($self->_error($tx),undef) unless $tx->success;
+			$self->_instance_url(undef);
+			$self->_access_token(undef);
+			$self->_access_time(0);
+			$self->ua->cookie_jar->empty();
+			return $self->$cb(undef, 1);
 		}
 	)->catch(sub {
 		return $self->$cb(pop);
@@ -539,6 +577,88 @@ sub _headers {
 	return $header;
 }
 
+sub _login_oauth2_up {
+	my ( $self, $cb ) = @_;
+	my $url = Mojo::URL->new($self->login_url)->path("/services/oauth2/token");
+	my $form = {
+		grant_type => 'password',
+		client_id => $self->consumer_key,
+		client_secret => $self->consumer_secret,
+		username => $self->username,
+		password => $self->password . $self->pass_token,
+	};
+	# blocking request
+	unless ($cb) {
+		my $tx = $self->ua->post($url, $self->_headers(), form => $form);
+		die $self->_error($tx) unless $tx->success;
+		my $data = $tx->res->json;
+		$self->_instance_url(Mojo::URL->new($data->{instance_url}));
+		$self->_access_token($data->{access_token});
+		$self->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
+		return $self;
+	}
+
+	# non-blocking request
+	Mojo::IOLoop->delay(
+		sub { $self->ua->post($url, $self->_headers(), form =>$form, shift->begin); },
+		sub {
+			my ($delay, $tx) = @_;
+			return $self->$cb($self->_error($tx),undef) unless $tx->success;
+			my $data = $tx->res->json;
+			$self->_instance_url(Mojo::URL->new($data->{instance_url}));
+			$self->_access_token($data->{access_token});
+			$self->_access_time($data->{issued_at}/1000); #convert milliseconds to seconds
+			return $self->$cb(undef, $self->_access_token);
+		}
+	)->catch(sub {
+		return $self->$cb(pop);
+	})->wait;
+	return $self;
+}
+
+# returns true (1) if login required, else undef
+sub _login_required {
+	my $self = shift;
+	if( $self->_access_token && $self->_instance_url ) {
+		my $time = $self->_access_time;
+		return undef if ( int((time() - $time)/60) < 30 );
+	}
+	$self->ua->cookie_jar->empty();
+	return 1;
+}
+
+sub _login_soap {
+	my ( $self, $cb ) = @_;
+	my $url = Mojo::URL->new($self->login_url)->path($self->_path('soap'));
+	my $envelope = WWW::Salesforce::SOAP::envelope_login($self->username, $self->password, $self->pass_token)->to_string;
+
+	unless ( $cb ) {
+		my $tx = $self->ua->post($url, $self->_headers('soap'), $envelope);
+		die $self->_error($tx) unless $tx->success;
+		my $data = WWW::Salesforce::SOAP::response_login($tx->res->dom);
+		$self->_instance_url(Mojo::URL->new($data->{serverUrl}));
+		$self->_access_token($data->{sessionId});
+		$self->_access_time(time);
+		return $self;
+	}
+	# non-blocking request
+	Mojo::IOLoop->delay(
+		sub { $self->ua->post($url, $self->_headers(), $envelope, shift->begin); },
+		sub {
+			my ($delay, $tx) = @_;
+			return $self->$cb($self->_error($tx),undef) unless $tx->success;
+			my $data = WWW::Salesforce::SOAP::response_login($tx->res->dom);
+			$self->_instance_url(Mojo::URL->new($data->{serverUrl}));
+			$self->_access_token($data->{sessionId});
+			$self->_access_time(time); #convert milliseconds to seconds
+			return $self->$cb(undef, $self->_access_token);
+	}
+	)->catch(sub {
+		return $self->$cb(pop);
+	})->wait;
+	return $self;
+}
+
 sub _path {
 	my ($self, $type) = @_;
 	if ( $type && $type eq 'soap' ) {
@@ -640,7 +760,7 @@ L<WWW::Salesforce> makes the following attributes available.
 =head2 consumer_key
 
 	my $key = $sf->consumer_key;
-	$key = $sf->consumer_key( 'alksdlkj3hh.asdf' );
+	$sf = $sf->consumer_key( 'alksdlkj3hh.asdf' ); # method-chaining
 
 The Consumer Key (also referred to as the client_id in the Saleforce documentation) is part of your L<Connected App|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm>.  It is a required field to be able to login.
 
@@ -649,7 +769,7 @@ Note, this attribute is only used to generate the access token during C<login>. 
 =head2 consumer_secret
 
 	my $secret = $sf->consumer_secret;
-	$secret = $sf->consumer_secret( 'asdfasdjkfh234123513245' );
+	$sf = $sf->consumer_secret( 'asdfasdjkfh234123513245' ); # method-chaining
 
 The Consumer Secret (also referred to as the client_secret in the Saleforce documentation) is part of your L<Connected App|http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm>.  It is a required field to be able to login.
 
@@ -658,7 +778,7 @@ Note, this attribute is only used to generate the access token during C<login>. 
 =head2 login_type
 
 	my $type = $sf->login_type;
-	$type = $sf->login_type( 'oauth2_up' );
+	$sf = $sf->login_type( 'oauth2_up' ); # method-chaining
 
 This is what will determine our login method of choice. No matter which login
 method you choose, we're going to communicate to the Salesforce services using an
@@ -686,14 +806,14 @@ It will go through the L<Salesforce SOAP-based username and password login flow|
 =head2 login_url
 
 	my $host = $sf->login_url;
-	$host = $sf->login_url( Mojo::URL->new('https://test.salesforce.com') );
+	$sf = $sf->login_url( Mojo::URL->new('https://test.salesforce.com') ); # method-chaining
 
 This is the base host of the API we're using.  This allows you to use any of your sandbox or live data areas easily. You may want to C<logout> before changing this setting.
 
 =head2 pass_token
 
 	my $token = $sf->pass_token;
-	$token = $sf->pass_token( 'mypasswordtoken123214123521345' );
+	$sf = $sf->pass_token( 'mypasswordtoken123214123521345' ); # method-chaining
 
 The password token is a Salesforce-generated token to go along with your password.  It is appended to the end of your password and used only during C<login> authentication.
 
@@ -702,7 +822,7 @@ Note, this attribute is only used to generate the access token during C<login>. 
 =head2 password
 
 	my $password = $sf->password;
-	$password = $sf->password( 'mypassword' );
+	$sf = $sf->password( 'mypassword' ); # method-chaining
 
 The password is the password you set for your user account in Salesforce.
 
@@ -717,7 +837,7 @@ The L<Mojo::UserAgent> is the user agent we use to communicate with the Salesfor
 =head2 username
 
 	my $username = $sf->username;
-	$username = $sf->username( 'foo@bar.com' );
+	$sf = $sf->username( 'foo@bar.com' ); # method-chaining
 
 The username is the email address you set for your user account in Salesforce.
 
@@ -726,7 +846,7 @@ Note, this attribute is only used to generate the access token during C<login>. 
 =head2 version
 
 	my $version = $sf->version;
-	$version = $sf->version( '34.0' );
+	$sf = $sf->version( '34.0' ); # method-chaining
 
 Tell us what API version you'd like to use.  Leave off the C<v> from the version number.
 
@@ -1007,7 +1127,7 @@ Chase Whitener << <cwhitener at gmail.com> >>
 =head1 BUGS
 
 Please report any bugs or feature requests on GitHub L<https://github.com/genio/www-salesforce-nb/issues>.
-I appreciate any and all criticism, bug reports, enhancements, or fixes.
+We appreciate any and all criticism, bug reports, enhancements, or fixes.
 
 =head1 SUPPORT
 

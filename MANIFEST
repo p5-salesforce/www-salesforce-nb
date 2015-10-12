@@ -1,6 +1,5 @@
 Changes
 lib/WWW/Salesforce.pm
-lib/WWW/Salesforce/Connector.pm
 lib/WWW/Salesforce/SOAP.pm
 Makefile.PL
 MANIFEST

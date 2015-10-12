@@ -67,6 +67,8 @@ can_ok($sf, qw(create insert) );
 	my $error;
 	$error = try {return $sf->create() } catch { $_; };
 	like( $error, qr/^No SObject Type defined/, 'create error: invalid object');
+	$error = try {return $sf->insert() } catch { $_; };
+	like( $error, qr/^No SObject Type defined/, 'insert error: invalid object');
 	$error = try {return $sf->create({type=>{}}) } catch { $_; };
 	like( $error, qr/^No SObject Type defined/, 'create error: invalid object');
 	$error = try {return $sf->create('test', '') } catch { $_; };
@@ -103,29 +105,6 @@ can_ok($sf, qw(create insert) );
 	like( $error, qr/^Empty SObjects are not allowed/, 'create error: non-hashref object error message');
 	$error = try { return $sf->create('type'); } catch { $_; };
 	like( $error, qr/^Empty SObjects are not allowed/, 'create error: no objects error message');
-
-	$error = try {return $sf->insert('badObject', {empty=>'stuff'}) } catch { $_; };
-	like( $error, qr/The requested resource does not exist/, 'insert error: invalid object type');
-	$error = try { return $sf->insert({type=>'badObject',empty=>'stuff'}); } catch { $_; };
-	like( $error, qr/The requested resource does not exist/, 'insert error: invalid object type in-type');
-	$error = try { return $sf->insert({attributes => {type=>'badObject'},empty=>'stuff'}); } catch { $_; };
-	like( $error, qr/The requested resource does not exist/, 'insert error: invalid object type in-attributes-type');
-	$error = try {return $sf->insert('Account', {empty=>'stuff'}) } catch { $_; };
-	like( $error, qr/Required fields are missing/, 'insert error: missing required field');
-	$error = try {return $sf->insert('Account', {Name=>'foo',empty=>'stuff'}) } catch { $_; };
-	like( $error, qr/INVALID_FIELD: No such column/, 'insert error: Invalid Column');
-	$error = try { return $sf->insert({empty=>'stuff'}); } catch { $_; };
-	like( $error, qr/^No SObject Type defined/, 'insert error: no type error message');
-	$error = try { return $sf->insert('type',{}); } catch { $_; };
-	like( $error, qr/^Empty SObjects are not allowed/, 'insert error: empty object error message');
-	$error = try { return $sf->insert('type',{}); } catch { $_; };
-	like( $error, qr/^Empty SObjects are not allowed/, 'insert error: empty object error message');
-	$error = try { return $sf->insert('type',''); } catch { $_; };
-	like( $error, qr/^Empty SObjects are not allowed/, 'insert error: non-hashref object error message');
-	$error = try { return $sf->insert('type',undef); } catch { $_; };
-	like( $error, qr/^Empty SObjects are not allowed/, 'insert error: non-hashref object error message');
-	$error = try { return $sf->insert('type'); } catch { $_; };
-	like( $error, qr/^Empty SObjects are not allowed/, 'insert error: no objects error message');
 }
 
 # object creation tests
@@ -149,26 +128,6 @@ try {
 	is_deeply($res, $expected_result, "create: type_before_object: got a good response");
 } catch {
 	BAIL_OUT("Something went wrong in create: $_");
-};
-# object insertion tests
-try {
-	#type as top-level hash key
-	my $res = $sf->insert({type=>'Account',Name=>'test',});
-	is_deeply($res, $expected_result, "insert: type_in_object: got a good response");
-	#type as attributes hash key
-	$res = $sf->insert({attributes=>{type=>'Account'},Name=>'test',});
-	is_deeply($res, $expected_result, "insert: type_in_object: got a good response");
-	#type argument overridden in top-level hash key
-	$res = $sf->insert('Account',{type=>'ThrowawayType',Name=>'test',});
-	is_deeply($res, $expected_result, "insert: type_in_object: got a good response");
-	#type argument overridden in attributes hash key
-	$res = $sf->insert('Account',{attributes=>{type=>'ThrowawayType'},Name=>'test',});
-	is_deeply($res, $expected_result, "insert: type_in_object: got a good response");
-	#type as first argument and nowhere else
-	$res = $sf->insert('Account', {Name=>'test',});
-	is_deeply($res, $expected_result, "insert: type_before_object: got a good response");
-} catch {
-	BAIL_OUT("Something went wrong in single insert: $_");
 };
 
 # non-blocking errors and successes

@@ -110,7 +110,7 @@ All API calls using this library will first make sure you are properly logged in
 
 ```perl
 my $key = $sf->consumer_key;
-$key = $sf->consumer_key( 'alksdlksdf' );
+$sf = $sf->consumer_key( 'alksdlksdf' ); # method-chaining
 ```
 
 The Consumer Key (also referred to as the client\_id in the Saleforce documentation) is part of your [Connected App](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm).  It is a required field to be able to login.
@@ -121,7 +121,7 @@ Note, this attribute is only used to generate the access token during [login](#l
 
 ```perl
 my $secret = $sf->consumer_secret;
-$secret = $sf->consumer_secret( 'asdfas123513245' );
+$sf = $sf->consumer_secret( 'asdfas123513245' ); # method-chaining
 ```
 
 The Consumer Secret (also referred to as the client\_secret in the Saleforce documentation) is part of your [Connected App](http://www.salesforce.com/us/developer/docs/api_rest/Content/intro_defining_remote_access_applications.htm).  It is a required field to be able to login.
@@ -132,7 +132,7 @@ Note, this attribute is only used to generate the access token during [login](#l
 
 ```perl
 my $type = $sf->login_type;
-$type = $sf->login_type( 'oauth2_up' );
+$sf = $sf->login_type( 'oauth2_up' ); # method-chaining
 ```
 
 This is what will determine our login method of choice. No matter which login method you choose, we're going to communicate to the Salesforce services using an ```Authorization: Bearer token``` header. The login method just dictates how we will request that token from Salesforce.  Different methods of login require slightly different sets of data in order for the login to take place.
@@ -154,7 +154,7 @@ This method will only require your [username](#username), [password](#password),
 
 ```perl
 my $host = $sf->login_url;
-$host = $sf->login_url( Mojo::URL->new('https://test.salesforce.com') );
+$sf = $sf->login_url( Mojo::URL->new('https://test.salesforce.com') ); # method-chaining
 ```
 
 This is the base host of the API we're using.  This allows you to use any of your sandbox or live data areas easily. You may want to [logout](#logout) before changing this setting.
@@ -163,7 +163,7 @@ This is the base host of the API we're using.  This allows you to use any of you
 
 ```perl
 my $token = $sf->pass_token;
-$token = $sf->pass_token( 'mypasswordtoken145' );
+$sf = $sf->pass_token( 'mypasswordtoken145' ); # method-chaining
 ```
 
 The password token is a Salesforce-generated token to go along with your password.  It is appended to the end of your password and used only during [login](#login) authentication.
@@ -174,7 +174,7 @@ Note, this attribute is only used to generate the access token during [login](#l
 
 ```perl
 my $password = $sf->password;
-$password = $sf->password( 'mypassword' );
+$sf = $sf->password( 'mypassword' ); # method-chaining
 ```
 
 The password is the password you set for your user account in Salesforce.
@@ -193,7 +193,7 @@ The [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) is the user agen
 
 ```perl
 my $username = $sf->username;
-$username = $sf->username( 'foo@bar.com' );
+$sf = $sf->username( 'foo@bar.com' ); # method-chaining
 ```
 
 The username is the email address you set for your user account in Salesforce.
@@ -203,7 +203,7 @@ Note, this attribute is only used to generate the access token during [login](#l
 
 ```perl
 my $version = $sf->version;
-$version = $sf->version( '34.0' );
+$sf = $sf->version( '34.0' ); # method-chaining
 ```
 
 Tell us what API version you'd like to use.  Leave off the ```v``` from the version number.
@@ -405,4 +405,4 @@ Chase Whitener -- cwhitener@gmail.com
 ## BUGS
 
 Please report any bugs or feature requests on GitHub [https://github.com/genio/www-salesforce-nb/issues](https://github.com/genio/www-salesforce-nb/issues).
-I appreciate any and all criticism, bug reports, enhancements, or fixes.
+We appreciate any and all criticism, bug reports, enhancements, or fixes.

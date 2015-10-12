@@ -32,18 +32,16 @@ sub response_login {
 	$dom->at('loginResponse > result')->child_nodes->each(sub {
 		my $element = shift;
 		my $tag = $element->tag();
-		return unless $tag;
 		my $count = 0;
 		$element->child_nodes->each(sub {
 			my $uinfo = shift;
 			my $utag = $uinfo->tag();
 			return unless $utag;
 			$count++;
-			$info->{$tag} //= {};
-			$info->{$tag}{$utag} = $uinfo->text() || '';
+			$info->{$tag}{$utag} = $uinfo->text();
 		});
 		unless ( $count ) {
-			$info->{$tag} = $element->text() || '';
+			$info->{$tag} = $element->text();
 		}
 	});
 	return $info;
@@ -69,13 +67,6 @@ L<WWW::Salesforce::SOAP> allows us to pull a lot of the mundane code out that on
 =head1 ATTRIBUTES
 
 L<WWW::Salesforce::SOAP> makes the following attributes available.
-
-=head2 urn
-
-	my $urn = $soap->urn;
-	$urn = $sf->urn( 'urn:partner.soap.sforce.com' );
-
-The C<urn> allows
 
 =head1 METHODS
 

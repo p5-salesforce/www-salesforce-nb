@@ -1,5 +1,10 @@
 Revision history for Perl extension WWW::Salesforce.
 
+0.010
+	- Pull the ::Connector methods back into WWW::Salesforce directly
+	- Change from a Moo object to a Mojo::Base object
+	- Got coverage tests up a slight bit
+
 0.009
 	- All NB calls use Mojo::IOLoop->delay() now.
 	- All NB early errors use next_tick

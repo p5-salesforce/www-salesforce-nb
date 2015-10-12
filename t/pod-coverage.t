@@ -5,7 +5,6 @@ use Test::Pod::Coverage;
 plan skip_all => 'set TEST_POD to enable this test (developer only!)'
 	unless $ENV{TEST_POD};
 
-plan tests => 3;
+plan tests => 2;
 pod_coverage_ok( "WWW::Salesforce" );
-pod_coverage_ok( "WWW::Salesforce::Connector" );
 pod_coverage_ok( "WWW::Salesforce::SOAP" );
