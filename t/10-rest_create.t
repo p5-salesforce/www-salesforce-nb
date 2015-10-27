@@ -1,22 +1,23 @@
 use Mojo::Base -strict;
 use Test::More;
 use Mojo::IOLoop;
-use Mojolicious::Lite;
+use Mojolicious;
 use Try::Tiny;
 use v5.10;
 
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
-BEGIN {
-	$ENV{MOJO_NO_SOCKS} = $ENV{MOJO_NO_TLS} = 1;
-	$ENV{MOJO_REACTOR} = 'Mojo::Reactor::Poll';
-	use_ok( 'WWW::Salesforce' ) || BAIL_OUT("Can't use WWW::Salesforce");
-}
+BEGIN { use_ok( 'WWW::Salesforce' ) || BAIL_OUT("Can't use WWW::Salesforce"); }
 my @fields = qw(Name MailingStreet MailingCity MailingState MailingCountry Phone);
-# Silence
-app->log->level('fatal');
-post '/services/data/v33.0/sobjects/:type' => sub {
+
+my $sf = try { WWW::Salesforce->new(); } catch { BAIL_OUT("Unable to create new instance: $_"); };
+isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
+
+# setup mock
+$sf->ua->server->app(Mojolicious->new);
+$sf->ua->server->app->log->level('fatal');
+$sf->ua->server->app->routes->post('/services/data/v33.0/sobjects/:type' => sub {
 	my $c = shift;
 	my $type = $c->stash('type');
 	my $params = $c->req->json || undef;
@@ -38,25 +39,11 @@ post '/services/data/v33.0/sobjects/:type' => sub {
 		return $c->render(json=>{success=>'true',id=>'01t500000016RuaAAE',errors=>[]});
 	}
 	return $c->render(json=>[{message=>"Multipart message must include a non-binary part",errorCode=>"INVALID_MULTIPART_REQUEST"}],status=>400);
-};
+});
 
-my $sf = try {
-	WWW::Salesforce->new(
-		login_url => Mojo::URL->new('/'),
-		login_type => 'oauth2_up',
-		version => '33.0',
-		username => 'test',
-		password => 'test',
-		pass_token => 'toke',
-		consumer_key => 'test_id',
-		consumer_secret => 'test_secret',
-	);
-} catch {
-	BAIL_OUT("Unable to create new instance: $_");
-	return undef;
-};
-isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
 # set the login
+$sf->version('33.0');
+$sf->login_url(Mojo::URL->new('/'));
 $sf->_instance_url('/');
 $sf->_access_token('123455663452abacbabababababababanenenenene');
 $sf->_access_time(time());
