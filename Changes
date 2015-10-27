@@ -1,5 +1,8 @@
 Revision history for Perl extension WWW::Salesforce.
 
+0.011
+	- Simplify the mock servers a bit
+
 0.010
 	- Pull the ::Connector methods back into WWW::Salesforce directly
 	- Change from a Moo object to a Mojo::Base object

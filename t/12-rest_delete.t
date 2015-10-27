@@ -1,25 +1,25 @@
 use Mojo::Base -strict;
 use Test::More;
+use Mojolicious;
 use Mojo::IOLoop;
-use Mojolicious::Lite;
 use Try::Tiny;
 use v5.10;
 
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
-BEGIN {
-	$ENV{MOJO_NO_SOCKS} = $ENV{MOJO_NO_TLS} = 1;
-	$ENV{MOJO_REACTOR} = 'Mojo::Reactor::Poll';
-	use_ok( 'WWW::Salesforce' ) || BAIL_OUT("Can't use WWW::Salesforce");
-}
+BEGIN { use_ok( 'WWW::Salesforce' ) || BAIL_OUT("Can't use WWW::Salesforce"); }
 my $ID = '001W000000KY0vBIAT';
 my $ID_DEL = '001W000000KY0vBIAC';
 my $ID_MAL = '001W000000KY0vBZZZ';
 
-# Silence
-app->log->level('fatal');
-del '/services/data/v33.0/sobjects/:type/:id' => sub {
+my $sf = try { WWW::Salesforce->new(); } catch { BAIL_OUT("Unable to create new instance: $_"); };
+isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
+
+# setup mock
+$sf->ua->server->app(Mojolicious->new);
+$sf->ua->server->app->log->level('fatal');
+$sf->ua->server->app->routes->delete('/services/data/v33.0/sobjects/:type/:id' => sub {
 	my $c = shift;
 	my $type = $c->stash('type') || '';
 	my $id = $c->stash('id') || '';
@@ -36,25 +36,11 @@ del '/services/data/v33.0/sobjects/:type/:id' => sub {
 		return $c->render(status=>204,text=>'');
 	}
 	return $c->render(status=>404,json=>[{errorCode=> "NOT_FOUND", message=>"Provided external ID field does not exist or is not accessible: $id"}]);
-};
+});
 
-my $sf = try {
-	WWW::Salesforce->new(
-		login_url => Mojo::URL->new('/'),
-		login_type => 'oauth2_up',
-		version => '33.0',
-		username => 'test',
-		password => 'test',
-		pass_token => 'toke',
-		consumer_key => 'test_id',
-		consumer_secret => 'test_secret',
-	);
-} catch {
-	BAIL_OUT("Unable to create new instance: $_");
-	return undef;
-};
-isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
 # set the login
+$sf->version('33.0');
+$sf->login_url(Mojo::URL->new('/'));
 $sf->_instance_url('/');
 $sf->_access_token('123455663452abacbabababababababanenenenene');
 $sf->_access_time(time());
@@ -73,59 +59,27 @@ can_ok($sf, qw(delete del destroy) );
 	# undef type
 	$error = try {return $sf->delete({},{}) } catch { $_; };
 	like( $error, qr/No SObject Type defined/, 'delete error: invalid type and id');
-	$error = try {return $sf->del({},{}) } catch { $_; };
-	like( $error, qr/No SObject Type defined/, 'del error: invalid type and id');
-	$error = try {return $sf->destroy({},{}) } catch { $_; };
-	like( $error, qr/No SObject Type defined/, 'destroy error: invalid type and id');
 	# undef type
 	$error = try {return $sf->delete(undef, $ID) } catch { $_; };
 	like( $error, qr/No SObject Type defined/, 'delete error: undef type');
-	$error = try {return $sf->del(undef, $ID) } catch { $_; };
-	like( $error, qr/No SObject Type defined/, 'del error: undef type');
-	$error = try {return $sf->destroy(undef, $ID) } catch { $_; };
-	like( $error, qr/No SObject Type defined/, 'destroy error: undef type');
 	# all defined, bad type
 	$error = try {return $sf->delete('badObject', $ID) } catch { $_; };
 	like( $error, qr/The requested resource does not exist/, 'delete error: invalid object type');
-	$error = try {return $sf->del('badObject', $ID) } catch { $_; };
-	like( $error, qr/The requested resource does not exist/, 'del error: invalid object type');
-	$error = try {return $sf->destroy('badObject', $ID) } catch { $_; };
-	like( $error, qr/The requested resource does not exist/, 'destroy error: invalid object type');
 	# empty ID
 	$error = try {return $sf->delete('badObject') } catch { $_; };
 	like( $error, qr/No SObject ID provided/, 'delete error: empty ID');
-	$error = try {return $sf->del('badObject') } catch { $_; };
-	like( $error, qr/No SObject ID provided/, 'del error: empty ID');
-	$error = try {return $sf->destroy('badObject') } catch { $_; };
-	like( $error, qr/No SObject ID provided/, 'destroy error: empty ID');
 	# undef ID
 	$error = try {return $sf->delete('badObject',undef) } catch { $_; };
 	like( $error, qr/No SObject ID provided/, 'delete error: undef ID');
-	$error = try {return $sf->del('badObject',undef) } catch { $_; };
-	like( $error, qr/No SObject ID provided/, 'del error: undef ID');
-	$error = try {return $sf->destroy('badObject',undef) } catch { $_; };
-	like( $error, qr/No SObject ID provided/, 'destroy error: undef ID');
 	# invalid ID
 	$error = try {return $sf->delete('badObject','1234') } catch { $_; };
 	like( $error, qr/No SObject ID provided/, 'delete error: invalid ID');
-	$error = try {return $sf->del('badObject','1234') } catch { $_; };
-	like( $error, qr/No SObject ID provided/, 'del error: invalid ID');
-	$error = try {return $sf->destroy('badObject','1234') } catch { $_; };
-	like( $error, qr/No SObject ID provided/, 'destroy error: invalid ID');
 	# already deleted
 	$error = try {return $sf->delete('Account',$ID_DEL) } catch { $_; };
 	like( $error, qr/entity is deleted/, 'delete error: Entity is Deleted');
-	$error = try {return $sf->del('Account',$ID_DEL) } catch { $_; };
-	like( $error, qr/entity is deleted/, 'del error: Entity is Deleted');
-	$error = try {return $sf->destroy('Account',$ID_DEL) } catch { $_; };
-	like( $error, qr/entity is deleted/, 'destroy error: Entity is Deleted');
 	# malformed ID
 	$error = try {return $sf->delete('Account',$ID_MAL) } catch { $_; };
 	like( $error, qr/malformed id/, 'delete error: Entity is malformed');
-	$error = try {return $sf->del('Account',$ID_MAL) } catch { $_; };
-	like( $error, qr/malformed id/, 'del error: Entity is malformed');
-	$error = try {return $sf->destroy('Account',$ID_MAL) } catch { $_; };
-	like( $error, qr/malformed id/, 'destroy error: Entity is malformed');
 }
 
 my $expected={id=>$ID,success=>1,errors=>[],};
@@ -133,10 +87,6 @@ my $expected={id=>$ID,success=>1,errors=>[],};
 # successes
 {
 	my $res;
-	$res = try {return $sf->del('Account',$ID) }catch{$_};
-	is_deeply($res, $expected, "del: type_in_object: got a good response");
-	$res = try {return $sf->destroy('Account',$ID) }catch{$_};
-	is_deeply($res, $expected, "destroy: type_in_object: got a good response");
 	$res = try {return $sf->delete('Account',$ID) }catch{$_};
 	is_deeply($res, $expected, "delete: type_in_object: got a good response");
 }
@@ -174,7 +124,6 @@ Mojo::IOLoop->delay(
 	sub {
 		my ($delay, $sf, $err, $res) = @_;
 		is($err, undef, 'delete-nb: correctly got no fault');
-		isa_ok($res, 'HASH', 'delete-nb: got a hashref response');
 		is_deeply($res, $expected, "delete-nb: got the right result");
 	}
 )->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
