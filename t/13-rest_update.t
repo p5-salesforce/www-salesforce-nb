@@ -1,26 +1,27 @@
 use Mojo::Base -strict;
 use Test::More;
 use Mojo::IOLoop;
-use Mojolicious::Lite;
+use Mojolicious;
 use Try::Tiny;
 use v5.10;
 
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
-BEGIN {
-	$ENV{MOJO_NO_SOCKS} = $ENV{MOJO_NO_TLS} = 1;
-	$ENV{MOJO_REACTOR} = 'Mojo::Reactor::Poll';
-	use_ok( 'WWW::Salesforce' ) || BAIL_OUT("Can't use WWW::Salesforce");
-}
+BEGIN { use_ok( 'WWW::Salesforce' ) || BAIL_OUT("Can't use WWW::Salesforce"); }
 
 my $ID = '001W000000KY0vBIAT';
 my $ID_DEL = '001W000000KY0vBIAC';
 my $ID_MAL = '001W000000KY0vBZZZ';
 my @fields = qw(Name MailingStreet MailingCity MailingState MailingCountry Phone);
-# Silence
-app->log->level('fatal');
-patch '/services/data/v33.0/sobjects/:type/:id' => sub {
+
+my $sf = try { WWW::Salesforce->new(); } catch { BAIL_OUT("Unable to create new instance: $_"); };
+isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
+
+# setup mock
+$sf->ua->server->app(Mojolicious->new);
+$sf->ua->server->app->log->level('fatal');
+$sf->ua->server->app->routes->patch('/services/data/v33.0/sobjects/:type/:id' => sub {
 	my $c = shift;
 	my $type = $c->stash('type') || '';
 	my $id = $c->stash('id') || '';
@@ -53,25 +54,11 @@ patch '/services/data/v33.0/sobjects/:type/:id' => sub {
 	}
 	# success is nothing
 	return $c->render(status=>204,text=>'');
-};
+});
 
-my $sf = try {
-	WWW::Salesforce->new(
-		login_url => Mojo::URL->new('/'),
-		login_type => 'oauth2_up',
-		version => '33.0',
-		username => 'test',
-		password => 'test',
-		pass_token => 'toke',
-		consumer_key => 'test_id',
-		consumer_secret => 'test_secret',
-	);
-} catch {
-	BAIL_OUT("Unable to create new instance: $_");
-	return undef;
-};
-isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
 # set the login
+$sf->version('33.0');
+$sf->login_url(Mojo::URL->new('/'));
 $sf->_instance_url('/');
 $sf->_access_token('123455663452abacbabababababababanenenenene');
 $sf->_access_time(time());
@@ -185,7 +172,6 @@ Mojo::IOLoop->delay(
 	sub {
 		my ($delay, $sf, $err, $res) = @_;
 		is($err, undef, 'update-nb: correctly got no fault');
-		isa_ok($res, 'HASH', 'update-nb: got a hashref response');
 		is_deeply($res, {id=>$ID,success=>1,errors=>[],}, "update-nb: got the right result");
 	}
 )->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
