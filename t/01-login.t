@@ -1,28 +1,35 @@
 use Mojo::Base -strict;
 use Test::More;
 use Mojo::IOLoop;
-use Mojolicious::Lite;
+use Mojolicious;
 use Try::Tiny;
 use v5.10;
 
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
-BEGIN {
-	$ENV{MOJO_NO_SOCKS} = $ENV{MOJO_NO_TLS} = 1;
-	$ENV{MOJO_REACTOR} = 'Mojo::Reactor::Poll';
-	use_ok( 'WWW::Salesforce' ) || BAIL_OUT("Can't use WWW::Salesforce");
-}
-# Silence
-app->log->level('fatal');
-post '/services/Soap/u/33.0/' => sub {
+BEGIN { use_ok( 'WWW::Salesforce' ) || BAIL_OUT("Can't use WWW::Salesforce"); }
+
+my $sf = try { WWW::Salesforce->new(); } catch { BAIL_OUT("Unable to create new instance: $_"); };
+isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
+
+# setup mock
+$sf->ua->server->app(Mojolicious->new);
+$sf->ua->server->app->log->level('fatal');
+$sf->ua->server->app->routes->post('/services/Soap/u/33.0/' => sub {
 	my $c = shift;
 	my $username = '';
 	my $password = '';
 	my $input = '';
-	$input = $c->req->dom() if $c->req && $c->req->content && $c->req->dom;
+	my $type = $c->req->headers->header('Content-Type') || '';
+	# return an error if the content-type header isn't correct.
+	my $ehead = q(<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"><soapenv:Body><soapenv:Fault><faultcode>soapenv:Client</faultcode><faultstring>content-type of the request should be text/xml</faultstring></soapenv:Fault></soapenv:Body></soapenv:Envelope>);
+	return $c->render(data=>$ehead, format => 'xml', status=>500) unless $type =~ /text\/xml/;
+
 	my $eof = q(<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"><soapenv:Body><soapenv:Fault><faultcode>soapenv:Client</faultcode><faultstring>Premature end of file.</faultstring></soapenv:Fault></soapenv:Body></soapenv:Envelope>);
+	$input = $c->req->dom() if $c->req && $c->req->content && $c->req->dom;
 	return $c->render(data=>$eof, format => 'xml', status=>500) unless $input;
+
 	$username = $input->at('urn\:username')->text() if $input->at('urn\:username');
 	$password = $input->at('urn\:password')->text() if $input->at('urn\:password');
 	#return actual error messages
@@ -32,14 +39,14 @@ post '/services/Soap/u/33.0/' => sub {
 	# return the successful response
 	my $success=qq(<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns="urn:partner.soap.sforce.com" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soapenv:Body><loginResponse><result><metadataServerUrl>/</metadataServerUrl><passwordExpired>false</passwordExpired><sandbox>false</sandbox><serverUrl>/</serverUrl><sessionId>123455663452abacbabababababababanenenenene</sessionId><userId>00e30658AA0de34AA2</userId><userInfo><accessibilityMode>false</accessibilityMode><currencySymbol>\$</currencySymbol><orgAttachmentFileSizeLimit>5242880</orgAttachmentFileSizeLimit><orgDefaultCurrencyIsoCode>USD</orgDefaultCurrencyIsoCode><orgDisallowHtmlAttachments>false</orgDisallowHtmlAttachments><orgHasPersonAccounts>false</orgHasPersonAccounts><organizationId>00e30658AA0de34AAX</organizationId><organizationMultiCurrency>false</organizationMultiCurrency><organizationName>Test Company</organizationName><profileId>00e30658AA0de34AAA</profileId><roleId>00e30658AA0de34AA1</roleId><sessionSecondsValid>14400</sessionSecondsValid><userDefaultCurrencyIsoCode xsi:nil="true"/><userEmail>test\@tester.com</userEmail><userFullName>Test User</userFullName><userId>00e30658AA0de34AA2</userId><userLanguage>en_US</userLanguage><userLocale>en_US</userLocale><userName>$username</userName><userTimeZone>America/New_York</userTimeZone><userType>Standard</userType><userUiSkin>Theme3</userUiSkin></userInfo></result></loginResponse></soapenv:Body></soapenv:Envelope>);
 	return $c->render(data => $success, format => 'xml');
-};
-post '/services/oauth2/revoke' => sub {
+});
+$sf->ua->server->app->routes->post('/services/oauth2/revoke' => sub {
 	my $c = shift;
 	my $token = $c->param('token');
 	return $c->render(json=>[{error_description=>"invalid token: $token",error=>"unsupported_token_type"}], status=>400) unless $token eq '123455663452abacbabababababababanenenenene';
 	return $c->render(json=>[{success=>'true'}]);
-};
-post '/services/oauth2/token' => sub {
+});
+$sf->ua->server->app->routes->post('/services/oauth2/token' => sub {
 	my $c = shift;
 	my $grant_type = $c->param('grant_type') || '';
 	my $client_id = $c->param('client_id') || '';
@@ -61,26 +68,18 @@ post '/services/oauth2/token' => sub {
 		issued_at => time()*1000,
 		access_token => '123455663452abacbabababababababanenenenene'
 	});
-};
+});
 
-my $sf = try {
-	WWW::Salesforce->new(
-		login_url => Mojo::URL->new('/'),
-		login_type => 'oauth2_up',
-		version => '33.0',
-		username => 'test',
-		password => 'test',
-		pass_token => 'toke',
-		consumer_key => 'test_id',
-		consumer_secret => 'test_secret',
-	);
-} catch {
-	BAIL_OUT("Unable to create new instance: $_");
-	return undef;
-};
-isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
-
-# Test attributes
+# set the login
+$sf->version('33.0');
+$sf->login_url(Mojo::URL->new('/'));
+$sf->login_type('oauth2_up');
+$sf->username('test');
+$sf->password('test');
+$sf->pass_token('toke');
+$sf->consumer_key('test_id');
+$sf->consumer_secret('test_secret');
+# actual testing
 can_ok($sf, qw(login)) or BAIL_OUT("Something's wrong with the methods!");
 
 # test a bad login
