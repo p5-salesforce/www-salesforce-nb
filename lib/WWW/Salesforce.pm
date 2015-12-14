@@ -643,7 +643,7 @@ sub _login_soap {
 	}
 	# non-blocking request
 	Mojo::IOLoop->delay(
-		sub { $self->ua->post($url, $self->_headers(), $envelope, shift->begin); },
+		sub { $self->ua->post($url, $self->_headers('soap'), $envelope, shift->begin); },
 		sub {
 			my ($delay, $tx) = @_;
 			return $self->$cb($self->_error($tx),undef) unless $tx->success;
