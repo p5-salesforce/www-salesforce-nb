@@ -14,9 +14,9 @@ my $sf = try { WWW::Salesforce->new(); } catch { BAIL_OUT("Unable to create new 
 isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
 
 # setup mock
-$sf->ua->server->app(Mojolicious->new);
-$sf->ua->server->app->log->level('fatal');
-$sf->ua->server->app->routes->post('/services/Soap/u/33.0/' => sub {
+my $mock = Mojolicious->new;
+$mock->log->level('fatal');
+$mock->routes->post('/services/Soap/u/33.0/' => sub {
 	my $c = shift;
 	my $username = '';
 	my $password = '';
@@ -40,13 +40,13 @@ $sf->ua->server->app->routes->post('/services/Soap/u/33.0/' => sub {
 	my $success=qq(<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns="urn:partner.soap.sforce.com" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soapenv:Body><loginResponse><result><metadataServerUrl>/</metadataServerUrl><passwordExpired>false</passwordExpired><sandbox>false</sandbox><serverUrl>/</serverUrl><sessionId>123455663452abacbabababababababanenenenene</sessionId><userId>00e30658AA0de34AA2</userId><userInfo><accessibilityMode>false</accessibilityMode><currencySymbol>\$</currencySymbol><orgAttachmentFileSizeLimit>5242880</orgAttachmentFileSizeLimit><orgDefaultCurrencyIsoCode>USD</orgDefaultCurrencyIsoCode><orgDisallowHtmlAttachments>false</orgDisallowHtmlAttachments><orgHasPersonAccounts>false</orgHasPersonAccounts><organizationId>00e30658AA0de34AAX</organizationId><organizationMultiCurrency>false</organizationMultiCurrency><organizationName>Test Company</organizationName><profileId>00e30658AA0de34AAA</profileId><roleId>00e30658AA0de34AA1</roleId><sessionSecondsValid>14400</sessionSecondsValid><userDefaultCurrencyIsoCode xsi:nil="true"/><userEmail>test\@tester.com</userEmail><userFullName>Test User</userFullName><userId>00e30658AA0de34AA2</userId><userLanguage>en_US</userLanguage><userLocale>en_US</userLocale><userName>$username</userName><userTimeZone>America/New_York</userTimeZone><userType>Standard</userType><userUiSkin>Theme3</userUiSkin></userInfo></result></loginResponse></soapenv:Body></soapenv:Envelope>);
 	return $c->render(data => $success, format => 'xml');
 });
-$sf->ua->server->app->routes->post('/services/oauth2/revoke' => sub {
+$mock->routes->post('/services/oauth2/revoke' => sub {
 	my $c = shift;
 	my $token = $c->param('token');
 	return $c->render(json=>[{error_description=>"invalid token: $token",error=>"unsupported_token_type"}], status=>400) unless $token eq '123455663452abacbabababababababanenenenene';
 	return $c->render(json=>[{success=>'true'}]);
 });
-$sf->ua->server->app->routes->post('/services/oauth2/token' => sub {
+$mock->routes->post('/services/oauth2/token' => sub {
 	my $c = shift;
 	my $grant_type = $c->param('grant_type') || '';
 	my $client_id = $c->param('client_id') || '';
@@ -69,6 +69,7 @@ $sf->ua->server->app->routes->post('/services/oauth2/token' => sub {
 		access_token => '123455663452abacbabababababababanenenenene'
 	});
 });
+$sf->ua->server->app($mock); #point the client to the mock
 
 # set the login
 $sf->version('33.0');
@@ -140,39 +141,45 @@ try {
 	BAIL_OUT("Unable to login and out properly with soap: $_");
 };
 
-# non-blocking error
-Mojo::IOLoop->delay(
-	sub {$sf->login_type('oauth2_up');$sf->username('test2');$sf->login(shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		like( $err, qr/invalid_grant/, 'login-nb oauth2_up: error: invalid grant');
-		is($res, undef, 'login-nb oauth2_up: error: correctly got no successful response');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in login_oath2_up-nb: ".pop)})->wait;
-Mojo::IOLoop->delay(
-	sub {$sf->login_type('soap');$sf->username('test2');$sf->login(shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		like( $err, qr/INVALID_LOGIN/, 'login-nb soap: error: invalid login');
-		is($res, undef, 'login-nb soap: error: correctly got no successful response');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in login_soap-nb: ".pop)})->wait;
+# non-blocking errors
+{
+	my ($err,$res);
+	Mojo::IOLoop->delay(
+		sub {$sf->login_type('oauth2_up');$sf->username('test2');$sf->login(shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_;}
+	)->catch(sub {BAIL_OUT("Something went wrong in login_oath2_up-nb: ".pop)})->wait;
+	like( $err, qr/invalid_grant/, 'login-nb oauth2_up: error: invalid grant');
+	is($res, undef, 'login-nb oauth2_up: error: correctly got no successful response');
+	$err = undef;
+	$res = undef;
+	Mojo::IOLoop->delay(
+		sub {$sf->login_type('soap');$sf->username('test2');$sf->login(shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_;}
+	)->catch(sub {BAIL_OUT("Something went wrong in login_soap-nb: ".pop)})->wait;
+	like( $err, qr/INVALID_LOGIN/, 'login-nb soap: error: invalid login');
+	is($res, undef, 'login-nb soap: error: correctly got no successful response');
+}
 
-Mojo::IOLoop->delay(
-	sub {$sf->login_type('oauth2_up');$sf->username('test');$sf->login(shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		is( $err, undef, 'login-nb oauth2_up: login success with no error');
-		is($res, '123455663452abacbabababababababanenenenene', 'login-nb oauth2_up: successful login');
-		$sf->_access_token('');
-		$sf->_instance_url('');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in login_soap-nb: ".pop)})->wait;
+# non-blocking successes
+{
+	my ($err,$res);
+	Mojo::IOLoop->delay(
+		sub {$sf->login_type('oauth2_up');$sf->username('test');$sf->login(shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_;}
+	)->catch(sub {BAIL_OUT("Something went wrong in login_soap-nb: ".pop)})->wait;
+	is( $err, undef, 'login-nb oauth2_up: login success with no error');
+	is($res, '123455663452abacbabababababababanenenenene', 'login-nb oauth2_up: successful login');
+	$sf->_access_token('');
+	$sf->_instance_url('');
+	$err = undef;
+	$res = undef;
 
-Mojo::IOLoop->delay(
-	sub {$sf->login_type('soap');$sf->login(shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		is( $err, undef, 'login-nb oauth2_up: login success with no error');
-		is($res, '123455663452abacbabababababababanenenenene', 'login-nb oauth2_up: successful login');
-		$sf->_access_token('');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in login_soap-nb: ".pop)})->wait;
-
+	Mojo::IOLoop->delay(
+		sub {$sf->login_type('soap');$sf->login(shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_;}
+	)->catch(sub {BAIL_OUT("Something went wrong in login_soap-nb: ".pop)})->wait;
+	is( $err, undef, 'login-nb soap: login success with no error');
+	is($res, '123455663452abacbabababababababanenenenene', 'login-nb soap: successful login');
+	$sf->_access_token('');
+}
 done_testing();
