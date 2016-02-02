@@ -2,6 +2,7 @@ Revision history for Perl extension WWW::Salesforce.
 
 0.011
 	- Simplify the mock servers a bit
+	- Fix the non-blocking tests to ensure they all run
 
 0.010
 	- Pull the ::Connector methods back into WWW::Salesforce directly
