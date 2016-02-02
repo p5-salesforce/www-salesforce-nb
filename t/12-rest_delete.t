@@ -17,9 +17,9 @@ my $sf = try { WWW::Salesforce->new(); } catch { BAIL_OUT("Unable to create new 
 isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
 
 # setup mock
-$sf->ua->server->app(Mojolicious->new);
-$sf->ua->server->app->log->level('fatal');
-$sf->ua->server->app->routes->delete('/services/data/v33.0/sobjects/:type/:id' => sub {
+my $mock = Mojolicious->new;
+$mock->log->level('fatal');
+$mock->routes->delete('/services/data/v33.0/sobjects/:type/:id' => sub {
 	my $c = shift;
 	my $type = $c->stash('type') || '';
 	my $id = $c->stash('id') || '';
@@ -37,6 +37,7 @@ $sf->ua->server->app->routes->delete('/services/data/v33.0/sobjects/:type/:id' =
 	}
 	return $c->render(status=>404,json=>[{errorCode=> "NOT_FOUND", message=>"Provided external ID field does not exist or is not accessible: $id"}]);
 });
+$sf->ua->server->app($mock); #point the client to the mock
 
 # set the login
 $sf->version('33.0');
@@ -91,51 +92,52 @@ my $expected={id=>$ID,success=>1,errors=>[],};
 	is_deeply($res, $expected, "delete: type_in_object: got a good response");
 }
 
-# non-blocking error
-Mojo::IOLoop->delay(
-	sub {$sf->delete('badObject',$ID, shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		like( $err, qr/The requested resource does not exist/, 'delete-nb error: invalid object type');
-		is($res, undef, 'delete-nb error: correctly got no successful response');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
+{ # non-blocking error
+	my ($err, $res);
+	Mojo::IOLoop->delay(
+		sub { $sf->delete('badObject',$ID, shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
+	like( $err, qr/The requested resource does not exist/, 'delete-nb error: invalid object type');
+	is($res, undef, 'delete-nb error: correctly got no successful response');
 
-# non-blocking error
-Mojo::IOLoop->delay(
-	sub {$sf->delete('',$ID, shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		like( $err, qr/No SObject Type defined/, 'delete-nb error: invalid object type');
-		is($res, undef, 'delete-nb error: correctly got no successful response');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
+	$err = undef;
+	$res = undef;
+	Mojo::IOLoop->delay(
+		sub { $sf->delete('',$ID, shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
+	like( $err, qr/No SObject Type defined/, 'delete-nb error: invalid object type');
+	is($res, undef, 'delete-nb error: correctly got no successful response');
 
-# non-blocking error
-Mojo::IOLoop->delay(
-	sub {$sf->delete('something','', shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		like( $err, qr/No SObject ID provided/, 'delete-nb error: invalid object id');
-		is($res, undef, 'delete-nb error: correctly got no successful response');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
+	$err = undef;
+	$res = undef;
+	Mojo::IOLoop->delay(
+		sub { $sf->delete('something','', shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
+	like( $err, qr/No SObject ID provided/, 'delete-nb error: invalid object id');
+	is($res, undef, 'delete-nb error: correctly got no successful response');
 
-#non-blocking success
-Mojo::IOLoop->delay(
-	sub {$sf->delete('Account',$ID, shift->begin(0));},
-	sub {
-		my ($delay, $sf, $err, $res) = @_;
-		is($err, undef, 'delete-nb: correctly got no fault');
-		is_deeply($res, $expected, "delete-nb: got the right result");
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
+	$err = undef;
+	$res = undef;
+	Mojo::IOLoop->delay(
+		sub { $sf->delete('Account',$ID, shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
+	is($err, undef, 'delete-nb: correctly got no fault');
+	is_deeply($res, $expected, "delete-nb: got the right result");
+}
 
-# attempt it when logins fail
-$sf->_access_token('');
-Mojo::IOLoop->delay(
-	sub {$sf->delete('Account',$ID, shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		like( $err, qr/404 Not Found/, 'delete-nb error: bad login');
-		is($res, undef, 'delete-nb error: bad login correctly got no successful response');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
+{ # attempt it when logins fail
+	my ($err, $res);
+	$sf->_access_token('');
+	Mojo::IOLoop->delay(
+		sub { $sf->delete('Account',$ID, shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in delete-nb: ".pop)})->wait;
+	like( $err, qr/404 Not Found/, 'delete-nb error: bad login');
+	is($res, undef, 'delete-nb error: bad login correctly got no successful response');
+}
 
 done_testing;
