@@ -19,9 +19,9 @@ my $sf = try { WWW::Salesforce->new(); } catch { BAIL_OUT("Unable to create new 
 isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
 
 # setup mock
-$sf->ua->server->app(Mojolicious->new);
-$sf->ua->server->app->log->level('fatal');
-$sf->ua->server->app->routes->patch('/services/data/v33.0/sobjects/:type/:id' => sub {
+my $mock = Mojolicious->new;
+$mock->log->level('fatal');
+$mock->routes->patch('/services/data/v33.0/sobjects/:type/:id' => sub {
 	my $c = shift;
 	my $type = $c->stash('type') || '';
 	my $id = $c->stash('id') || '';
@@ -55,6 +55,7 @@ $sf->ua->server->app->routes->patch('/services/data/v33.0/sobjects/:type/:id' =>
 	# success is nothing
 	return $c->render(status=>204,text=>'');
 });
+$sf->ua->server->app($mock); #point the client to the mock
 
 # set the login
 $sf->version('33.0');
@@ -134,46 +135,53 @@ can_ok($sf, qw(update) );
 	is_deeply($res,{id=>$ID,success=>1,errors=>[],}, 'update: Successful update');
 }
 
-# non-blocking error
-Mojo::IOLoop->delay(
-	sub {$sf->update('badObject',$ID,{Name=>'bar'}, shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		like( $err, qr/The requested resource does not exist/, 'update-nb error: invalid object type');
-		is($res, undef, 'update-nb error: correctly got no successful response');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
-Mojo::IOLoop->delay(
-	sub {$sf->update('',$ID,{Name=>'bar'}, shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		is($err, 'No SObject Type defined.', 'update-nb error: invalid object type');
-		is($res, undef, 'update-nb error: correctly got no successful response');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
-Mojo::IOLoop->delay(
-	sub {$sf->update('badObject','',{Name=>'bar'}, shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		is($err, 'No SObject ID provided.', 'update-nb error: invalid object ID');
-		is($res, undef, 'update-nb error: correctly got no successful response');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
-$sf->_access_token('');
-Mojo::IOLoop->delay(
-	sub {$sf->update('badObject',$ID,{Name=>'bar'}, shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		is($err, '404 Not Found', 'update-nb error: not logged in');
-		is($res, undef, 'update-nb error: correctly got no successful response');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
+{ # non-blocking error
+	my ($err, $res);
+	Mojo::IOLoop->delay(
+		sub { $sf->update('badObject',$ID,{Name=>'bar'}, shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
+	like( $err, qr/The requested resource does not exist/, 'update-nb error: invalid object type');
+	is($res, undef, 'update-nb error: correctly got no successful response');
+	$err = undef;
+	$res = undef;
 
-#non-blocking success
-$sf->_access_token('123455663452abacbabababababababanenenenene');
-Mojo::IOLoop->delay(
-	sub {$sf->update('Account',$ID, {Name=>'bar'}, shift->begin(0));},
-	sub {
-		my ($delay, $sf, $err, $res) = @_;
-		is($err, undef, 'update-nb: correctly got no fault');
-		is_deeply($res, {id=>$ID,success=>1,errors=>[],}, "update-nb: got the right result");
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
+	Mojo::IOLoop->delay(
+		sub { $sf->update('',$ID,{Name=>'bar'}, shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
+	is($err, 'No SObject Type defined.', 'update-nb error: invalid object type');
+	is($res, undef, 'update-nb error: correctly got no successful response');
+	$err = undef;
+	$res = undef;
+
+	Mojo::IOLoop->delay(
+		sub { $sf->update('badObject','',{Name=>'bar'}, shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
+	is($err, 'No SObject ID provided.', 'update-nb error: invalid object ID');
+	is($res, undef, 'update-nb error: correctly got no successful response');
+	$err = undef;
+	$res = undef;
+
+	$sf->_access_token('');
+	Mojo::IOLoop->delay(
+		sub { $sf->update('badObject',$ID,{Name=>'bar'}, shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
+	is($err, '404 Not Found', 'update-nb error: not logged in');
+	is($res, undef, 'update-nb error: correctly got no successful response');
+}
+
+{ # non-blocking success
+	my ($err, $res);
+	$sf->_access_token('123455663452abacbabababababababanenenenene');
+	Mojo::IOLoop->delay(
+		sub { $sf->update('Account',$ID, {Name=>'bar'}, shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in update-nb: ".pop)})->wait;
+	is($err, undef, 'update-nb: correctly got no fault');
+	is_deeply($res, {id=>$ID,success=>1,errors=>[],}, "update-nb: got the right result");
+}
 
 done_testing;
