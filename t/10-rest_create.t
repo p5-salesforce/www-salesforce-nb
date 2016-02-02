@@ -15,9 +15,9 @@ my $sf = try { WWW::Salesforce->new(); } catch { BAIL_OUT("Unable to create new 
 isa_ok( $sf, 'WWW::Salesforce', 'Is a proper Salesforce object' ) || BAIL_OUT("can't instantiate");
 
 # setup mock
-$sf->ua->server->app(Mojolicious->new);
-$sf->ua->server->app->log->level('fatal');
-$sf->ua->server->app->routes->post('/services/data/v33.0/sobjects/:type' => sub {
+my $mock = Mojolicious->new;
+$mock->log->level('fatal');
+$mock->routes->post('/services/data/v33.0/sobjects/:type' => sub {
 	my $c = shift;
 	my $type = $c->stash('type');
 	my $params = $c->req->json || undef;
@@ -40,6 +40,7 @@ $sf->ua->server->app->routes->post('/services/data/v33.0/sobjects/:type' => sub 
 	}
 	return $c->render(json=>[{message=>"Multipart message must include a non-binary part",errorCode=>"INVALID_MULTIPART_REQUEST"}],status=>400);
 });
+$sf->ua->server->app($mock); #point the client to the mock
 
 # set the login
 $sf->version('33.0');
@@ -118,43 +119,49 @@ try {
 };
 
 # non-blocking errors and successes
-Mojo::IOLoop->delay(
-	sub {$sf->create(shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		like( $err, qr/^No SObject Type defined/, 'create_nb error: empty call');
-		is($res, undef, 'create_nb error: correctly got no successful response');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
-Mojo::IOLoop->delay(
-	sub {$sf->create('foo',shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		like( $err, qr/^Empty SObjects are not allowed/, 'create_nb error: invalid object');
-		is($res, undef, 'create_nb error: correctly got no successful response');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
-Mojo::IOLoop->delay(
-	sub {$sf->create('badObject',{empty=>'stuff'}, shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		like( $err, qr/The requested resource does not exist/, 'create_nb error: invalid object type');
-		is($res, undef, 'create_nb error: correctly got no successful response');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
-Mojo::IOLoop->delay(
-	sub {$sf->create({type=>'Account',Name=>'test',}, shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		is($err, undef, 'create_nb: correctly got no fault');
-		isa_ok($res, 'HASH', 'create_nb: got a hashref response');
-		is_deeply($res, $expected_result, "create_nb: got the right result");
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
-# attempt it when logins fail
-$sf->_access_token('');
-Mojo::IOLoop->delay(
-	sub {$sf->create({type=>'Account',Name=>'test',}, shift->begin(0));},
-	sub { my ($delay, $sf, $err, $res) = @_;
-		like( $err, qr/404 Not Found/, 'create_nb error: bad login');
-		is($res, undef, 'create_nb error: bad login correctly got no successful response');
-	}
-)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
+{
+	my ($err, $res);
+	Mojo::IOLoop->delay(
+		sub {$sf->create(shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
+	like( $err, qr/^No SObject Type defined/, 'create_nb error: empty call');
+	is($res, undef, 'create_nb error: correctly got no successful response');
+	$res = undef;
+	$err = undef;
+	Mojo::IOLoop->delay(
+		sub {$sf->create('foo',shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
+	like( $err, qr/^Empty SObjects are not allowed/, 'create_nb error: invalid object');
+	is($res, undef, 'create_nb error: correctly got no successful response');
+	$res = undef;
+	$err = undef;
+	Mojo::IOLoop->delay(
+		sub {$sf->create('badObject',{empty=>'stuff'}, shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
+	like( $err, qr/The requested resource does not exist/, 'create_nb error: invalid object type');
+	is($res, undef, 'create_nb error: correctly got no successful response');
+	$res = undef;
+	$err = undef;
+	Mojo::IOLoop->delay(
+		sub {$sf->create({type=>'Account',Name=>'test',}, shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
+	is($err, undef, 'create_nb: correctly got no fault');
+	isa_ok($res, 'HASH', 'create_nb: got a hashref response');
+	is_deeply($res, $expected_result, "create_nb: got the right result");
 
+	# attempt it when logins fail
+	$sf->_access_token('');
+	$res = undef;
+	$err = undef;
+	Mojo::IOLoop->delay(
+		sub {$sf->create({type=>'Account',Name=>'test',}, shift->begin(0));},
+		sub { (undef, undef, $err, $res) = @_; }
+	)->catch(sub {BAIL_OUT("Something went wrong in create: ".pop)})->wait;
+	like( $err, qr/404 Not Found/, 'create_nb error: bad login');
+	is($res, undef, 'create_nb error: bad login correctly got no successful response');
+}
 done_testing;
